@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tech Night · Chamados</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#1f2126;--hd:#26282c;--card:#2b2e36;--bd:#3c404b;--tx:#eef1f6;--mu:#9aa3b5;--ac:#4cb6f5;--au:#f7c948;--ok:#4ade80;--er:#f87171}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--hd);border-bottom:2px solid var(--au);display:flex;align-items:center;gap:8px;padding:6px 14px;flex-wrap:wrap}
+header img{height:52px}
+nav{display:flex;gap:6px;flex:1;align-items:center;flex-wrap:wrap}
+.w{max-width:980px;margin:0 auto;padding:16px}
+button{font:inherit;cursor:pointer;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:7px 13px}
+button.on{border-color:var(--au);color:var(--au)}
+button.p{background:var(--ac);border-color:var(--ac);color:#06202e;font-weight:600}
+input,select,textarea{width:100%;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:7px 10px}
+textarea{min-height:64px}
+label{display:block;font-size:.8rem;color:var(--mu);margin:8px 0 3px}
+h3{margin:18px 0 8px;color:var(--au)}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0 10px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.bar input{flex:1;min-width:150px}.bar select{width:auto}
+.t{background:var(--card);border:1px solid var(--bd);border-left:4px solid var(--ac);border-radius:10px;padding:11px;margin-bottom:9px}
+.t.ok{border-left-color:var(--ok)}.t.er{border-left-color:var(--er)}
+.h{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.mu{color:var(--mu);font-size:.85rem}
+.acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;align-items:center}.acts select{width:auto}
+.tag{font-size:.72rem;border:1px solid var(--au);color:var(--au);border-radius:99px;padding:1px 8px;margin-right:5px}
+.kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin-bottom:12px}
+.kp div{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px}.kp b{display:block;font-size:1.25rem}
+.r{display:flex;gap:6px;margin-bottom:6px}
+#lg{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+#lg>div{background:var(--hd);border:1px solid var(--bd);border-top:3px solid var(--au);border-radius:12px;padding:22px;width:100%;max-width:360px;text-align:center}
+#lg img{width:100%;max-width:280px}
+#mod{display:none;position:fixed;inset:0;background:#000a;align-items:flex-start;justify-content:center;overflow:auto;padding:16px}
+.box{background:var(--hd);border:1px solid var(--bd);border-radius:12px;padding:16px;width:100%;max-width:640px}
+.box h3{margin-top:0}
+table{border-collapse:collapse;width:100%}td,th{padding:4px 6px;text-align:left}
+#print{display:none}
+@media print{body{background:#fff!important}#app,#lg,#mod{display:none!important}#print{display:block;color:#000;font:13px/1.4 Arial,sans-serif}
+#print .ph{display:flex;align-items:center;gap:14px;background:#26282c;color:#fff;padding:10px;border-bottom:4px solid #f7c948}#print img{height:80px}
+#print h1{margin:0}#print td,#print th{border-bottom:1px solid #ccc}#print ol{font-size:11px}}
+</style>
+</head>
+<body>
+<div id="lg"><div>
+<img src="logo.png" alt="Tech Night">
+<label>E-mail</label><input id="le" type="email" autocomplete="username">
+<label>Senha</label><input id="lp" type="password" autocomplete="current-password" onkeydown="if(event.key=='Enter')login()">
+<p id="lerr" style="color:var(--er);min-height:1.2em;margin:8px 0"></p>
+<button class="p" style="width:100%" onclick="login()">Entrar</button>
+</div></div>
+<div id="app" style="display:none"><header><img src="logo.png" alt="Tech Night"><nav id="nav"></nav></header><div class="w" id="main"></div></div>
+<div id="mod"></div><div id="print"></div>
+
+<script>
+const SB_URL='COLE_A_URL_DO_SUPABASE',SB_KEY='COLE_A_CHAVE_ANON';
+const db=supabase.createClient(SB_URL,SB_KEY);
+const $=i=>document.getElementById(i),E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const R$=n=>(+n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const D=d=>d?new Date(d+'T12:00:00').toLocaleDateString('pt-BR'):'';
+const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const addDays=(d,n)=>{const x=new Date(d+'T12:00:00');x.setDate(x.getDate()+n);return x.toISOString().slice(0,10)};
+const opts=(a,s)=>a.map(x=>`<option ${x==s?'selected':''}>${E(x)}</option>`).join('');
+const ST=['Aberto','Em andamento','Aguardando peça','Aguardando aprovação do orçamento','Concluído','Entregue'];
+const MODS={chamados:'Chamados',clientes:'Clientes',financeiro:'Financeiro',admin:'Administração'};
+const FP=['Pix','Dinheiro','Cartão','Transferência'];
+let me,S={cli:[],tec:[],os:[],fin:[],per:[]},tab,fOS={q:'',st:''},fC='',fT='R',cur=[];
+const can=(m,n)=>me&&(me.admin||me.perms?.[m]?.[n]);
+const tot=o=>(o.itens||[]).reduce((s,i)=>s+i.q*i.v,0);
+const cn=id=>S.cli.find(c=>c.id==id)?.nome||'—',tn=id=>S.tec.find(t=>t.id==id)?.nome||'—';
+const M=h=>{$('mod').innerHTML=`<div class="box">${h}</div>`;$('mod').style.display='flex'},X=()=>{$('mod').style.display='none'};
+async function run(p){const{error}=await p;if(error){alert('Erro: '+error.message);return false}return true}
+async function load(){[S.cli,S.tec,S.os,S.fin,S.per]=await Promise.all(['clientes','tecnicos','os','fin','perfis'].map(t=>db.from(t).select('*').then(r=>r.data||[])))}
+async function refresh(){await load();draw()}
+
+async function boot(){
+  const{data:{session}}=await db.auth.getSession();if(!session)return;
+  const{data}=await db.from('perfis').select('*').eq('id',session.user.id).maybeSingle();
+  if(!data){$('lerr').textContent='Usuário sem perfil. Fale com o administrador.';await db.auth.signOut();return}
+  me=data;$('lg').style.display='none';$('app').style.display='block';await load();
+  tab=Object.keys(MODS).find(m=>can(m,'v'));draw()}
+async function login(){const{error}=await db.auth.signInWithPassword({email:$('le').value.trim(),password:$('lp').value});
+  if(error){$('lerr').textContent='E-mail ou senha inválidos.';return}$('lerr').textContent='';boot()}
+async function sair(){await db.auth.signOut();location.reload()}
+
+function draw(){
+  $('nav').innerHTML=Object.keys(MODS).filter(m=>can(m,'v')).map(m=>`<button class="${m==tab?'on':''}" onclick="tab='${m}';draw()">${MODS[m]}</button>`).join('')+`<span class="mu" style="margin-left:auto">${E(me.nome)}</span><button onclick="sair()">Sair</button>`;
+  $('main').innerHTML=tab?V[tab]():'<p class="mu">Você ainda não tem módulos liberados. Fale com o administrador.</p>'}
+
+const V={
+chamados(){
+  const l=S.os.filter(o=>(!fOS.st||o.status==fOS.st)&&(!fOS.q||(o.id+' '+cn(o.cliente_id)+' '+o.equip).toLowerCase().includes(fOS.q.toLowerCase()))).sort((a,b)=>b.id-a.id);
+  return `<div class="bar"><input placeholder="Buscar por nº, cliente ou equipamento" value="${E(fOS.q)}" onchange="fOS.q=this.value;draw()"><select onchange="fOS.st=this.value;draw()"><option value="">Todos os status</option>${opts(ST,fOS.st)}</select>${can('chamados','e')?'<button class="p" onclick="fOSm(0)">Nova OS</button>':''}</div>`+
+  (l.map(o=>`<div class="t ${o.status=='Concluído'||o.status=='Entregue'?'ok':''}"><div class="h"><b>#${o.id} · ${E(cn(o.cliente_id))}</b><span class="mu">${E(o.equip)} · Técnico: ${E(tn(o.tecnico_id))} · ${E(o.origem)}</span></div><div class="mu">${E(o.problema)}</div>
+  <div class="acts"><select ${can('chamados','e')?'':'disabled'} onchange="setSt(${o.id},this.value)">${opts(ST,o.status)}</select><b>${R$(tot(o))}</b>
+  ${can('chamados','e')?`<button onclick="fOSm(${o.id})">Editar</button>`:''}<button onclick="pdf(${o.id})">PDF</button>${can('chamados','x')?`<button onclick="delOS(${o.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhuma OS encontrada.</p>')},
+
+clientes(){
+  return `<div class="bar"><input placeholder="Buscar cliente" value="${E(fC)}" onchange="fC=this.value;draw()">${can('clientes','e')?'<button class="p" onclick="fCli(0)">Novo cliente</button>':''}</div>`+
+  (S.cli.filter(c=>!fC||(c.nome+(c.telefone||'')).toLowerCase().includes(fC.toLowerCase())).map(c=>`<div class="t"><div class="h"><b>${E(c.nome)}</b><span class="mu">${E(c.telefone)} ${E(c.email)}</span></div><div class="acts"><button onclick="hist(${c.id})">Histórico (${S.os.filter(o=>o.cliente_id==c.id).length})</button>${can('clientes','e')?`<button onclick="fCli(${c.id})">Editar</button>`:''}${can('clientes','x')?`<button onclick="del('clientes',${c.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhum cliente cadastrado.</p>')},
+
+financeiro(){
+  const F=S.fin,t=today(),mes=t.slice(0,7),pen=x=>!x.pago,sm=a=>a.reduce((s,x)=>s+ +x.valor,0);
+  const sal=sm(F.filter(x=>x.pago&&x.tipo=='R'&&(x.data_pag||'').startsWith(mes)))-sm(F.filter(x=>x.pago&&x.tipo=='P'&&(x.data_pag||'').startsWith(mes)));
+  return `<div class="kp"><div><span class="mu">A receber</span><b style="color:var(--ok)">${R$(sm(F.filter(x=>pen(x)&&x.tipo=='R')))}</b></div><div><span class="mu">A pagar</span><b style="color:var(--au)">${R$(sm(F.filter(x=>pen(x)&&x.tipo=='P')))}</b></div><div><span class="mu">Vencidas</span><b style="color:var(--er)">${R$(sm(F.filter(x=>pen(x)&&x.venc<t)))}</b></div><div><span class="mu">Saldo do mês</span><b>${R$(sal)}</b></div></div>
+  <div class="bar"><button class="${fT=='R'?'on':''}" onclick="fT='R';draw()">Contas a receber</button><button class="${fT=='P'?'on':''}" onclick="fT='P';draw()">Contas a pagar</button>${can('financeiro','e')?'<button class="p" style="margin-left:auto" onclick="fFin()">Lançar conta</button>':''}</div>`+
+  (F.filter(x=>x.tipo==fT).sort((a,b)=>a.venc<b.venc?-1:1).map(x=>{const v=!x.pago&&x.venc<t;return `<div class="t ${x.pago?'ok':v?'er':''}"><div class="h"><b>${E(x.descr)} ${x.parcela?'· parcela '+x.parcela:''}</b><b>${R$(x.valor)}</b></div><div class="mu">Vence ${D(x.venc)} · ${x.pago?`Pago em ${D(x.data_pag)} (${E(x.forma)})`:v?'Vencida':'Em aberto'}${x.cliente_id?' · '+E(cn(x.cliente_id)):''}</div><div class="acts">${!x.pago&&can('financeiro','e')?`<button class="p" onclick="baixa(${x.id})">Dar baixa</button>`:''}${can('financeiro','x')?`<button onclick="del('fin',${x.id})">Excluir</button>`:''}</div></div>`}).join('')||'<p class="mu">Nenhum lançamento.</p>')},
+
+admin(){
+  return `<div class="h"><h3>Usuários</h3>${can('admin','e')?'<button class="p" onclick="fUser(\'\')">Novo usuário</button>':''}</div>`+
+  S.per.map(p=>`<div class="t"><div class="h"><b>${E(p.nome)}</b><span>${p.admin?'<span class="tag">Administrador</span>':''}<span class="mu">${Object.keys(MODS).filter(m=>p.perms?.[m]&&Object.values(p.perms[m]).some(Boolean)).map(m=>MODS[m]).join(', ')}</span></span></div><div class="acts">${can('admin','e')?`<button onclick="fUser('${p.id}')">Permissões</button>`:''}${p.id!=me.id&&can('admin','x')?`<button onclick="del('perfis','${p.id}')">Remover acesso</button>`:''}</div></div>`).join('')+
+  `<div class="h"><h3>Técnicos</h3>${can('admin','e')?'<button class="p" onclick="fTec()">Novo técnico</button>':''}</div>`+
+  (S.tec.map(t=>`<div class="t"><div class="h"><b>${E(t.nome)}</b><span class="mu">Usuário: ${E(S.per.find(p=>p.id==t.perfil_id)?.nome||'não associado')}</span></div><div class="acts">${can('admin','e')?`<button onclick="fTec(${t.id})">Editar</button>`:''}${can('admin','x')?`<button onclick="del('tecnicos',${t.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhum técnico cadastrado.</p>')}
+};
+
+async function del(tb,id){if(confirm('Excluir este registro?')&&await run(db.from(tb).delete().eq('id',id)))refresh()}
+const delOS=id=>del('os',id);
+
+/* ---- Chamados ---- */
+function fOSm(id){
+  const o=S.os.find(x=>x.id==id)||{itens:[],origem:'Balcão'};cur=(o.itens||[]).map(i=>({...i}));
+  M(`<h3>${id?'OS #'+id:'Nova OS'}</h3><div class="g"><div><label>Cliente</label><select id="o_c"><option value="">Escolher…</option>${S.cli.map(c=>`<option value="${c.id}" ${c.id==o.cliente_id?'selected':''}>${E(c.nome)}</option>`).join('')}</select></div>
+  <div><label>Técnico responsável</label><select id="o_t"><option value="">—</option>${S.tec.map(t=>`<option value="${t.id}" ${t.id==o.tecnico_id?'selected':''}>${E(t.nome)}</option>`).join('')}</select></div>
+  <div><label>Origem</label><select id="o_o">${opts(['Balcão','WhatsApp','Telefone','Visita','Outro'],o.origem)}</select></div>
+  <div><label>Marca / modelo</label><input id="o_m" value="${E(o.equip)}"></div><div><label>Nº de série</label><input id="o_s" value="${E(o.serie)}"></div>
+  <div><label>Senha / padrão (não sai no PDF)</label><input id="o_p" value="${E(o.senha)}"></div></div>
+  <label>Acessórios deixados</label><input id="o_a" value="${E(o.acess)}"><label>Estado físico / avarias</label><input id="o_e" value="${E(o.estado)}">
+  <label>Problema relatado</label><textarea id="o_d">${E(o.problema)}</textarea><h3>Orçamento</h3><div id="it"></div>
+  <div class="acts"><button onclick="cur.push({t:'Serviço',d:'',q:1,v:0});items()">Adicionar item</button><b id="tt"></b></div>
+  <div class="acts"><button class="p" onclick="saveOS(${id||0})">Salvar OS</button><button onclick="X()">Fechar</button></div>`);items()}
+function items(){
+  $('it').innerHTML=cur.map((i,k)=>`<div class="r"><select style="width:100px" onchange="cur[${k}].t=this.value">${opts(['Serviço','Peça'],i.t)}</select><input placeholder="Descrição" value="${E(i.d)}" onchange="cur[${k}].d=this.value"><input type="number" min="1" value="${i.q}" style="width:64px" onchange="cur[${k}].q=+this.value;sum()"><input type="number" step="0.01" value="${i.v}" style="width:100px" onchange="cur[${k}].v=+this.value;sum()"><button onclick="cur.splice(${k},1);items()">✕</button></div>`).join('');sum()}
+const sum=()=>$('tt').textContent='Total: '+R$(cur.reduce((s,i)=>s+i.q*i.v,0));
+async function saveOS(id){
+  const r={cliente_id:+$('o_c').value||null,tecnico_id:+$('o_t').value||null,origem:$('o_o').value,equip:$('o_m').value,serie:$('o_s').value,senha:$('o_p').value,acess:$('o_a').value,estado:$('o_e').value,problema:$('o_d').value,itens:cur};
+  if(!r.cliente_id||!r.problema.trim())return alert('Informe o cliente e o problema relatado.');
+  if(await run(id?db.from('os').update(r).eq('id',id):db.from('os').insert({...r,status:'Aberto'}))){X();refresh()}}
+async function setSt(id,v){
+  const o=S.os.find(x=>x.id==id);
+  if(v=='Concluído'&&!S.fin.some(f=>f.os_id==id))return dlgConc(o);
+  if(o.status=='Concluído'&&v!='Concluído'){if(!confirm('Reabrir a OS remove as contas dela que ainda não foram pagas. Continuar?'))return draw();await run(db.from('fin').delete().eq('os_id',id).eq('pago',false))}
+  if(await run(db.from('os').update({status:v}).eq('id',id)))refresh()}
+function dlgConc(o){
+  M(`<h3>Concluir OS #${o.id} · ${R$(tot(o))}</h3><label>Entrada (R$)</label><input id="en" type="number" step="0.01" value="0"><label>Forma de pagamento da entrada</label><select id="fe">${opts(FP)}</select>
+  <label>Prazos das parcelas em dias, separados por barra (vazio = à vista, vence hoje)</label><input id="pz" placeholder="28/56/90">
+  <div class="acts"><button class="p" onclick="conc(${o.id})">Concluir e gerar financeiro</button><button onclick="X();draw()">Cancelar</button></div>`)}
+async function conc(id){
+  const o=S.os.find(x=>x.id==id),T=tot(o),en=Math.min(Math.max(+$('en').value||0,0),T),rest=+(T-en).toFixed(2),t0=today(),
+  pz=$('pz').value.split('/').map(x=>parseInt(x)).filter(x=>x>=0),b={tipo:'R',os_id:id,cliente_id:o.cliente_id,descr:'OS #'+id},rows=[];
+  if(en>0)rows.push({...b,descr:b.descr+' (entrada)',valor:en,venc:t0,pago:true,data_pag:t0,forma:$('fe').value});
+  if(rest>0){const p=pz.length?pz:[0],v=Math.floor(rest/p.length*100)/100;
+    p.forEach((d,i)=>rows.push({...b,parcela:p.length>1?`${i+1}/${p.length}`:null,valor:i==p.length-1?+(rest-v*(p.length-1)).toFixed(2):v,venc:addDays(t0,d)}))}
+  if(rows.length&&!await run(db.from('fin').insert(rows)))return;
+  if(await run(db.from('os').update({status:'Concluído'}).eq('id',id))){X();refresh()}}
+
+const TERMOS=['Garantia de 90 dias sobre o serviço executado e as peças substituídas, contados da data de entrega.','A garantia não cobre mau uso, quedas, contato com líquidos, violação de lacres ou defeitos sem relação com o serviço realizado.','Se forem encontrados novos defeitos, um novo orçamento será apresentado e só será executado com a aprovação do cliente.','A Tech Night não se responsabiliza por perda de dados. O backup é de responsabilidade do cliente.','Após 90 dias do aviso de conclusão, poderá ser cobrada taxa de armazenagem do equipamento.','A retirada do equipamento exige a apresentação desta OS.'];
+function pdf(id){
+  const o=S.os.find(x=>x.id==id),c=S.cli.find(x=>x.id==o.cliente_id)||{};
+  $('print').innerHTML=`<div class="ph"><img src="logo.png" alt=""><div><h1>TECH NIGHT</h1><i>Conectando você à solução, a qualquer hora!</i><br>WhatsApp: (51) 99563-4449</div></div>
+  <h2>Ordem de Serviço nº ${o.id}</h2><p>Data: ${new Date(o.criado).toLocaleDateString('pt-BR')} · Status: ${E(o.status)}</p>
+  <p><b>Cliente:</b> ${E(c.nome)} ${E(c.telefone)}<br><b>Equipamento:</b> ${E(o.equip)} ${o.serie?'· Série '+E(o.serie):''}<br><b>Acessórios:</b> ${E(o.acess)}<br><b>Estado:</b> ${E(o.estado)}<br><b>Problema relatado:</b> ${E(o.problema)}</p>
+  <table><tr><th>Tipo</th><th>Descrição</th><th>Qtd</th><th>Valor</th><th>Subtotal</th></tr>${(o.itens||[]).map(i=>`<tr><td>${i.t}</td><td>${E(i.d)}</td><td>${i.q}</td><td>${R$(i.v)}</td><td>${R$(i.q*i.v)}</td></tr>`).join('')}</table>
+  <h3 style="color:#000">Total: ${R$(tot(o))}</h3><h4>Garantia e condições</h4><ol>${TERMOS.map(t=>`<li>${t}</li>`).join('')}</ol><p style="margin-top:36px">______________________________<br>Assinatura do cliente</p>`;
+  print()}
+
+/* ---- Clientes ---- */
+function fCli(id){
+  const c=S.cli.find(x=>x.id==id)||{};
+  M(`<h3>${id?'Editar cliente':'Novo cliente'}</h3><label>Nome</label><input id="c_n" value="${E(c.nome)}"><label>Telefone / WhatsApp</label><input id="c_t" value="${E(c.telefone)}"><label>E-mail</label><input id="c_e" value="${E(c.email)}"><label>CPF / CNPJ</label><input id="c_d" value="${E(c.doc)}">
+  <div class="acts"><button class="p" onclick="saveCli(${id||0})">Salvar cliente</button><button onclick="X()">Fechar</button></div>`)}
+async function saveCli(id){
+  const r={nome:$('c_n').value.trim(),telefone:$('c_t').value,email:$('c_e').value,doc:$('c_d').value};if(!r.nome)return alert('Informe o nome.');
+  if(await run(id?db.from('clientes').update(r).eq('id',id):db.from('clientes').insert(r))){X();refresh()}}
+function hist(id){
+  const l=S.os.filter(o=>o.cliente_id==id).sort((a,b)=>b.id-a.id);
+  M(`<h3>Histórico · ${E(cn(id))}</h3>${l.map(o=>`<div class="t"><div class="h"><b>OS #${o.id} · ${E(o.equip)}</b><span class="mu">${new Date(o.criado).toLocaleDateString('pt-BR')}</span></div><div class="mu">${E(o.problema)}</div><div>${E(o.status)} · ${R$(tot(o))}</div></div>`).join('')||'<p class="mu">Este cliente ainda não tem OS.</p>'}<div class="acts"><button onclick="X()">Fechar</button></div>`)}
+
+/* ---- Financeiro ---- */
+function fFin(){
+  M(`<h3>Lançar conta</h3><label>Tipo</label><select id="f_t"><option value="P" ${fT=='P'?'selected':''}>A pagar</option><option value="R" ${fT=='R'?'selected':''}>A receber</option></select><label>Descrição</label><input id="f_d"><label>Valor (R$)</label><input id="f_v" type="number" step="0.01"><label>Vencimento</label><input id="f_x" type="date" value="${today()}">
+  <div class="acts"><button class="p" onclick="saveFin()">Salvar lançamento</button><button onclick="X()">Fechar</button></div>`)}
+async function saveFin(){
+  const r={tipo:$('f_t').value,descr:$('f_d').value.trim(),valor:+$('f_v').value,venc:$('f_x').value};if(!r.descr||!r.valor||!r.venc)return alert('Preencha descrição, valor e vencimento.');
+  if(await run(db.from('fin').insert(r))){X();refresh()}}
+function baixa(id){
+  const x=S.fin.find(f=>f.id==id);
+  M(`<h3>Dar baixa · ${E(x.descr)} · ${R$(x.valor)}</h3><label>Forma de pagamento</label><select id="b_f">${opts(FP)}</select><label>Data</label><input id="b_d" type="date" value="${today()}">
+  <div class="acts"><button class="p" onclick="doBaixa(${id})">Confirmar baixa</button><button onclick="X()">Fechar</button></div>`)}
+async function doBaixa(id){if(await run(db.from('fin').update({pago:true,forma:$('b_f').value,data_pag:$('b_d').value}).eq('id',id))){X();refresh()}}
+
+/* ---- Administração ---- */
+function fUser(id){
+  const p=S.per.find(x=>x.id==id)||{perms:{}};
+  M(`<h3>${id?'Permissões de '+E(p.nome):'Novo usuário'}</h3><label>Nome</label><input id="u_n" value="${E(p.nome)}">
+  ${id?'':'<label>E-mail (login)</label><input id="u_e" type="email"><label>Senha inicial (mín. 6 caracteres)</label><input id="u_p" type="text">'}
+  <label><input type="checkbox" id="u_a" style="width:auto" ${p.admin?'checked':''}> Administrador (acesso total)</label>
+  <table><tr><th>Módulo</th><th>Ver</th><th>Editar</th><th>Excluir</th></tr>${Object.keys(MODS).map(m=>`<tr><td>${MODS[m]}</td>${['v','e','x'].map(n=>`<td><input type="checkbox" style="width:auto" id="pm_${m}_${n}" ${p.perms?.[m]?.[n]?'checked':''}></td>`).join('')}</tr>`).join('')}</table>
+  <div class="acts"><button class="p" onclick="saveUser('${id}')">Salvar usuário</button><button onclick="X()">Fechar</button></div>`)}
+async function saveUser(id){
+  const perms={};for(const m in MODS){perms[m]={};for(const n of['v','e','x'])perms[m][n]=$(`pm_${m}_${n}`).checked}
+  const r={nome:$('u_n').value.trim(),admin:$('u_a').checked,perms};if(!r.nome)return alert('Informe o nome.');
+  if(id){if(await run(db.from('perfis').update(r).eq('id',id))){X();refresh()}return}
+  const em=$('u_e').value.trim(),pw=$('u_p').value;if(!em||pw.length<6)return alert('Informe e-mail e senha com pelo menos 6 caracteres.');
+  const c2=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+  const{data,error}=await c2.auth.signUp({email:em,password:pw});
+  if(error||!data.user)return alert('Não foi possível criar o usuário: '+(error?.message||'tente novamente'));
+  if(await run(db.from('perfis').insert({...r,id:data.user.id}))){X();refresh()}}
+function fTec(id){
+  const t=S.tec.find(x=>x.id==id)||{};
+  M(`<h3>${id?'Editar técnico':'Novo técnico'}</h3><label>Nome do técnico</label><input id="t_n" value="${E(t.nome)}"><label>Usuário associado</label><select id="t_p"><option value="">Nenhum</option>${S.per.map(p=>`<option value="${p.id}" ${p.id==t.perfil_id?'selected':''}>${E(p.nome)}</option>`).join('')}</select>
+  <div class="acts"><button class="p" onclick="saveTec(${id||0})">Salvar técnico</button><button onclick="X()">Fechar</button></div>`)}
+async function saveTec(id){
+  const r={nome:$('t_n').value.trim(),perfil_id:$('t_p').value||null};if(!r.nome)return alert('Informe o nome.');
+  if(await run(id?db.from('tecnicos').update(r).eq('id',id):db.from('tecnicos').insert(r))){X();refresh()}}
+
+boot();
+</script>
+</body>
+</html>
