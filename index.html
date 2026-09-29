@@ -67,7 +67,7 @@ const opts=(a,s)=>a.map(x=>`<option ${x==s?'selected':''}>${E(x)}</option>`).joi
 const ST=['Aberto','Em andamento','Aguardando peça','Aguardando aprovação do orçamento','Concluído','Entregue'];
 const MODS={chamados:'Chamados',clientes:'Clientes',financeiro:'Financeiro',admin:'Administração'};
 const FP=['Pix','Dinheiro','Cartão','Transferência'];
-let me,S={cli:[],tec:[],os:[],fin:[],per:[]},tab,fOS={q:'',st:''},fC='',fT='R',cur=[];
+let me,S={cli:[],tec:[],os:[],fin:[],per:[]},tab,fOS={q:'',st:''},fC='',fT='R',fFm='',cur=[];
 const can=(m,n)=>me&&(me.admin||me.perms?.[m]?.[n]);
 const tot=o=>(o.itens||[]).reduce((s,i)=>s+i.q*i.v,0);
 const cn=id=>S.cli.find(c=>c.id==id)?.nome||'—',tn=id=>S.tec.find(t=>t.id==id)?.nome||'—';
@@ -103,11 +103,14 @@ clientes(){
   (S.cli.filter(c=>!fC||(c.nome+(c.telefone||'')).toLowerCase().includes(fC.toLowerCase())).map(c=>`<div class="t"><div class="h"><b>${E(c.nome)}</b><span class="mu">${E(c.telefone)} ${E(c.email)}</span></div><div class="acts"><button onclick="hist(${c.id})">Histórico (${S.os.filter(o=>o.cliente_id==c.id).length})</button>${can('clientes','e')?`<button onclick="fCli(${c.id})">Editar</button>`:''}${can('clientes','x')?`<button onclick="del('clientes',${c.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhum cliente cadastrado.</p>')},
 
 financeiro(){
-  const F=S.fin,t=today(),mes=t.slice(0,7),pen=x=>!x.pago,sm=a=>a.reduce((s,x)=>s+ +x.valor,0);
+  const F=S.fin,t=today(),mes=fFm||t.slice(0,7),pen=x=>!x.pago,sm=a=>a.reduce((s,x)=>s+ +x.valor,0);
   const sal=sm(F.filter(x=>x.pago&&x.tipo=='R'&&(x.data_pag||'').startsWith(mes)))-sm(F.filter(x=>x.pago&&x.tipo=='P'&&(x.data_pag||'').startsWith(mes)));
-  return `<div class="kp"><div><span class="mu">A receber</span><b style="color:var(--ok)">${R$(sm(F.filter(x=>pen(x)&&x.tipo=='R')))}</b></div><div><span class="mu">A pagar</span><b style="color:var(--au)">${R$(sm(F.filter(x=>pen(x)&&x.tipo=='P')))}</b></div><div><span class="mu">Vencidas</span><b style="color:var(--er)">${R$(sm(F.filter(x=>pen(x)&&x.venc<t)))}</b></div><div><span class="mu">Saldo do mês</span><b>${R$(sal)}</b></div></div>
-  <div class="bar"><button class="${fT=='R'?'on':''}" onclick="fT='R';draw()">Contas a receber</button><button class="${fT=='P'?'on':''}" onclick="fT='P';draw()">Contas a pagar</button>${can('financeiro','e')?'<button class="p" style="margin-left:auto" onclick="fFin()">Lançar conta</button>':''}</div>`+
-  (F.filter(x=>x.tipo==fT).sort((a,b)=>a.venc<b.venc?-1:1).map(x=>{const v=!x.pago&&x.venc<t;return `<div class="t ${x.pago?'ok':v?'er':''}"><div class="h"><b>${E(x.descr)} ${x.parcela?'· parcela '+x.parcela:''}</b><b>${R$(x.valor)}</b></div><div class="mu">Vence ${D(x.venc)} · ${x.pago?`Pago em ${D(x.data_pag)} (${E(x.forma)})`:v?'Vencida':'Em aberto'}${x.cliente_id?' · '+E(cn(x.cliente_id)):''}</div><div class="acts">${!x.pago&&can('financeiro','e')?`<button class="p" onclick="baixa(${x.id})">Dar baixa</button>`:''}${can('financeiro','x')?`<button onclick="del('fin',${x.id})">Excluir</button>`:''}</div></div>`}).join('')||'<p class="mu">Nenhum lançamento.</p>')},
+  const porMes=x=>!fFm||x.venc.startsWith(fFm);
+  return `<div class="kp"><div><span class="mu">A receber</span><b style="color:var(--ok)">${R$(sm(F.filter(x=>pen(x)&&x.tipo=='R'&&porMes(x))))}</b></div><div><span class="mu">A pagar</span><b style="color:var(--au)">${R$(sm(F.filter(x=>pen(x)&&x.tipo=='P'&&porMes(x))))}</b></div><div><span class="mu">Vencidas</span><b style="color:var(--er)">${R$(sm(F.filter(x=>pen(x)&&x.venc<t&&porMes(x))))}</b></div><div><span class="mu">Saldo de ${fFm?D(fFm+'-01').slice(3):'este mês'}</span><b>${R$(sal)}</b></div></div>
+  <div class="bar"><button class="${fT=='R'?'on':''}" onclick="fT='R';draw()">Contas a receber</button><button class="${fT=='P'?'on':''}" onclick="fT='P';draw()">Contas a pagar</button>
+  <input type="month" value="${fFm}" style="width:auto" onchange="fFm=this.value;draw()">${fFm?'<button onclick="fFm=\'\';draw()">Ver tudo</button>':''}
+  ${can('financeiro','e')?'<button class="p" style="margin-left:auto" onclick="fFin()">Lançar conta</button>':''}</div>`+
+  (F.filter(x=>x.tipo==fT&&porMes(x)).sort((a,b)=>a.venc<b.venc?-1:1).map(x=>{const v=!x.pago&&x.venc<t;return `<div class="t ${x.pago?'ok':v?'er':''}"><div class="h"><b>${E(x.descr)} ${x.parcela?'· parcela '+x.parcela:''}</b><b>${R$(x.valor)}</b></div><div class="mu">Vence ${D(x.venc)} · ${x.pago?`Pago em ${D(x.data_pag)} (${E(x.forma)})`:v?'Vencida':'Em aberto'}${x.cliente_id?' · '+E(cn(x.cliente_id)):''}</div><div class="acts">${!x.pago&&can('financeiro','e')?`<button class="p" onclick="baixa(${x.id})">Dar baixa</button>`:''}${can('financeiro','x')?`<button onclick="del('fin',${x.id})">Excluir</button>`:''}</div></div>`}).join('')||'<p class="mu">Nenhum lançamento neste período.</p>')},
 
 admin(){
   return `<div class="h"><h3>Usuários</h3>${can('admin','e')?'<button class="p" onclick="fUser(\'\')">Novo usuário</button>':''}</div>`+
