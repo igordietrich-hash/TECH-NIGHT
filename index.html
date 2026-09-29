@@ -9,8 +9,8 @@
 :root{--bg:#1f2126;--hd:#26282c;--card:#2b2e36;--bd:#3c404b;--tx:#eef1f6;--mu:#9aa3b5;--ac:#4cb6f5;--au:#f7c948;--ok:#4ade80;--er:#f87171}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header{background:var(--hd);border-bottom:2px solid var(--au);display:flex;align-items:center;gap:8px;padding:6px 14px;flex-wrap:wrap}
-header img{height:52px}
+header{background:var(--hd);border-bottom:2px solid var(--au);display:flex;align-items:center;gap:14px;padding:6px 14px;flex-wrap:wrap}
+header img{height:88px}
 nav{display:flex;gap:6px;flex:1;align-items:center;flex-wrap:wrap}
 .w{max-width:980px;margin:0 auto;padding:16px}
 button{font:inherit;cursor:pointer;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:7px 13px}
@@ -56,7 +56,7 @@ table{border-collapse:collapse;width:100%}td,th{padding:4px 6px;text-align:left}
 <div id="mod"></div><div id="print"></div>
 
 <script>
-const SB_URL='https://towakjhmchmuopvypcuo.supabase.co',SB_KEY='sb_publishable_sqPYwv0jFUcel0Y9kgqlOQ_pz54rF3D';
+const SB_URL='COLE_A_URL_DO_SUPABASE',SB_KEY='COLE_A_CHAVE_ANON';
 const db=supabase.createClient(SB_URL,SB_KEY);
 const $=i=>document.getElementById(i),E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const R$=n=>(+n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -65,7 +65,7 @@ const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOStr
 const addDays=(d,n)=>{const x=new Date(d+'T12:00:00');x.setDate(x.getDate()+n);return x.toISOString().slice(0,10)};
 const opts=(a,s)=>a.map(x=>`<option ${x==s?'selected':''}>${E(x)}</option>`).join('');
 const ST=['Aberto','Em andamento','Aguardando peça','Aguardando aprovação do orçamento','Concluído','Entregue'];
-const MODS={chamados:'Chamados',orcamentos:'Orçamentos',clientes:'Clientes',produtos:'Produtos',servicos:'Serviços',fornecedores:'Fornecedores',compras:'Compras',financeiro:'Financeiro',admin:'Administração'};
+const MODS={dashboard:'Painel',chamados:'Chamados',orcamentos:'Orçamentos',clientes:'Clientes',produtos:'Produtos',servicos:'Serviços',fornecedores:'Fornecedores',compras:'Compras',financeiro:'Financeiro',admin:'Administração'};
 const FP=['Pix','Dinheiro','Cartão','Transferência'];
 let me,S={cli:[],tec:[],os:[],fin:[],per:[],prod:[],srv:[],forn:[],cmp:[],orc:[],emp:{}},tab,fOS={q:'',st:''},fC='',fCa=0,fT='R',fFm='',fP='',fO='',cur=[];
 const can=(m,n)=>me&&(me.admin||me.perms?.[m]?.[n]);
@@ -96,6 +96,29 @@ function draw(){
   $('main').innerHTML=tab?V[tab]():'<p class="mu">Você ainda não tem módulos liberados. Fale com o administrador.</p>'}
 
 const V={
+dashboard(){
+  const mes=today().slice(0,7),abertas=S.os.filter(o=>!['Concluído','Entregue'].includes(o.status)),
+  vendas=S.os.filter(o=>(o.concluido||'').startsWith(mes)),vendasT=vendas.reduce((s,o)=>s+tot(o),0),
+  comprasM=S.cmp.filter(c=>(c.data||'').startsWith(mes)),comprasT=comprasM.reduce((s,c)=>s+ +c.total,0),
+  aReceber=S.fin.filter(x=>!x.pago&&x.tipo=='R').reduce((s,x)=>s+ +x.valor,0),aPagar=S.fin.filter(x=>!x.pago&&x.tipo=='P').reduce((s,x)=>s+ +x.valor,0),
+  venc=S.fin.filter(x=>!x.pago&&x.venc<today()).reduce((s,x)=>s+ +x.valor,0),baixo=S.prod.filter(p=>p.estoque<=p.estoque_min),
+  novosCli=S.cli.filter(c=>(c.criado||'').startsWith(mes)).length,orcAbertos=S.orc.filter(o=>o.status=='Aberto').length;
+  return `<h3>Painel · ${new Date(mes+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</h3>
+  <div class="kp">
+  <div><span class="mu">OS abertas agora</span><b>${abertas.length}</b></div>
+  <div><span class="mu">OS concluídas no mês</span><b>${vendas.length}</b></div>
+  <div><span class="mu">Vendas no mês</span><b style="color:var(--ok)">${R$(vendasT)}</b></div>
+  <div><span class="mu">Compras no mês</span><b style="color:var(--au)">${R$(comprasT)}</b></div>
+  <div><span class="mu">A receber (total)</span><b style="color:var(--ok)">${R$(aReceber)}</b></div>
+  <div><span class="mu">A pagar (total)</span><b style="color:var(--au)">${R$(aPagar)}</b></div>
+  <div><span class="mu">Contas vencidas</span><b style="color:var(--er)">${R$(venc)}</b></div>
+  <div><span class="mu">Orçamentos em aberto</span><b>${orcAbertos}</b></div>
+  <div><span class="mu">Produtos com estoque baixo</span><b style="color:${baixo.length?'var(--er)':'var(--tx)'}">${baixo.length}</b></div>
+  <div><span class="mu">Clientes novos no mês</span><b>${novosCli}</b></div>
+  </div>
+  ${abertas.length?`<h3>OS em aberto por status</h3>`+ST.filter(s=>s!='Concluído'&&s!='Entregue').map(s=>{const n=abertas.filter(o=>o.status==s).length;return n?`<div class="t"><div class="h"><b>${s}</b><b>${n}</b></div></div>`:''}).join(''):''}
+  ${baixo.length?`<h3>Produtos para repor</h3>`+baixo.map(p=>`<div class="t er"><div class="h"><b>${E(p.nome)}</b><span class="mu">Estoque: ${p.estoque} ${E(p.unidade)} (mínimo ${p.estoque_min})</span></div></div>`).join(''):''}`},
+
 chamados(){
   const l=S.os.filter(o=>(!fOS.st||o.status==fOS.st)&&(!fOS.q||(o.id+' '+cn(o.cliente_id)+' '+o.equip).toLowerCase().includes(fOS.q.toLowerCase()))).sort((a,b)=>b.id-a.id);
   return `<div class="bar"><input placeholder="Buscar por nº, cliente ou equipamento" value="${E(fOS.q)}" onchange="fOS.q=this.value;draw()"><select onchange="fOS.st=this.value;draw()"><option value="">Todos os status</option>${opts(ST,fOS.st)}</select>${can('chamados','e')?'<button class="p" onclick="fOSm(0)">Nova OS</button>':''}</div>`+
@@ -114,7 +137,7 @@ produtos(){
   return `<div class="bar"><input placeholder="Buscar produto" value="${E(fP)}" onchange="fP=this.value;draw()">${can('produtos','e')?'<button class="p" onclick="fProd(0)">Novo produto</button>':''}</div>`+
   (S.prod.filter(p=>!fP||(p.nome+(p.sku||'')).toLowerCase().includes(fP.toLowerCase())).map(p=>`<div class="t ${p.estoque<=p.estoque_min?'er':''}"><div class="h"><b>${E(p.nome)}</b><span class="mu">${p.sku?'SKU '+E(p.sku)+' · ':''}${E(fn(p.fornecedor_id))}</span></div>
   <div class="mu">Custo ${R$(p.custo)} · Venda ${R$(p.preco)}</div><div><b>Estoque: ${p.estoque} ${E(p.unidade)}</b>${p.estoque<=p.estoque_min?' <span class="tag" style="border-color:var(--er);color:var(--er)">Estoque baixo</span>':''}</div>
-  <div class="acts">${can('produtos','e')?`<button onclick="fProd(${p.id})">Editar</button>`:''}${can('produtos','x')?`<button onclick="del('produtos',${p.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhum produto cadastrado.</p>')},
+  <div class="acts"><button onclick="histProd(${p.id})">Histórico</button>${can('produtos','e')?`<button onclick="fProd(${p.id})">Editar</button>`:''}${can('produtos','x')?`<button onclick="del('produtos',${p.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhum produto cadastrado.</p>')},
 
 servicos(){
   return `<div class="bar">${can('servicos','e')?'<button class="p" onclick="fServ(0)">Novo serviço</button>':''}</div>`+
@@ -126,7 +149,8 @@ fornecedores(){
 
 compras(){
   return `<div class="bar">${can('compras','e')?'<button class="p" onclick="fCompra()">Nova compra</button>':''}</div>`+
-  ([...S.cmp].sort((a,b)=>b.id-a.id).map(c=>`<div class="t"><div class="h"><b>Compra #${c.id} · ${E(fn(c.fornecedor_id))}</b><span class="mu">${D(c.data)}</span></div><div class="mu">${(c.itens||[]).map(i=>i.nome+' ('+i.qtd+')').join(', ')}</div>
+  ([...S.cmp].sort((a,b)=>b.id-a.id).map(c=>`<div class="t"><div class="h"><b>Compra #${c.id} · ${E(fn(c.fornecedor_id))}</b><span class="mu">${D(c.data)}${c.numero_nf?' · NF '+E(c.numero_nf):''}</span></div><div class="mu">${(c.itens||[]).map(i=>i.nome+' ('+i.qtd+')').join(', ')}</div>
+  <div class="mu">${c.forma_pagamento?E(c.forma_pagamento)+' · ':''}${c.frete?'Frete '+R$(c.frete):''}</div>
   <div><b>${R$(c.total)}</b></div><div class="acts">${can('compras','x')?`<button onclick="del('compras',${c.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhuma compra registrada.</p>')},
 
 clientes(){
@@ -186,7 +210,7 @@ async function saveOS(id){
 async function setSt(id,v){
   const o=S.os.find(x=>x.id==id);
   if(v=='Concluído'&&!S.fin.some(f=>f.os_id==id))return dlgConc(o);
-  if(o.status=='Concluído'&&v!='Concluído'){if(!confirm('Reabrir a OS remove as contas dela que ainda não foram pagas. Continuar?'))return draw();await run(db.from('fin').delete().eq('os_id',id).eq('pago',false))}
+  if(o.status=='Concluído'&&v!='Concluído'){if(!confirm('Reabrir a OS remove as contas dela que ainda não foram pagas. Continuar?'))return draw();await run(db.from('fin').delete().eq('os_id',id).eq('pago',false));await run(db.from('os').update({concluido:null}).eq('id',id))}
   if(await run(db.from('os').update({status:v}).eq('id',id)))refresh()}
 function dlgConc(o){
   M(`<h3>Concluir OS #${o.id} · ${R$(tot(o))}</h3><label>Entrada (R$)</label><input id="en" type="number" step="0.01" value="0"><label>Forma de pagamento da entrada</label><select id="fe">${opts(FP)}</select>
@@ -200,7 +224,7 @@ async function conc(id){
     p.forEach((d,i)=>rows.push({...b,parcela:p.length>1?`${i+1}/${p.length}`:null,valor:i==p.length-1?+(rest-v*(p.length-1)).toFixed(2):v,venc:addDays(t0,d)}))}
   if(rows.length&&!await run(db.from('fin').insert(rows)))return;
   for(const i of(o.itens||[]))if(i.produto_id){const p=S.prod.find(x=>x.id==+i.produto_id);if(p)await db.from('produtos').update({estoque:p.estoque-i.q}).eq('id',p.id)}
-  if(await run(db.from('os').update({status:'Concluído'}).eq('id',id))){X();refresh()}}
+  if(await run(db.from('os').update({status:'Concluído',concluido:new Date().toISOString()}).eq('id',id))){X();refresh()}}
 
 const TERMOS=['Garantia de 90 dias sobre o serviço executado e as peças substituídas, contados da data de entrega.','A garantia não cobre mau uso, quedas, contato com líquidos, violação de lacres ou defeitos sem relação com o serviço realizado.','Se forem encontrados novos defeitos, um novo orçamento será apresentado e só será executado com a aprovação do cliente.','A Tech Night não se responsabiliza por perda de dados. O backup é de responsabilidade do cliente.','Após 90 dias do aviso de conclusão, poderá ser cobrada taxa de armazenagem do equipamento.','A retirada do equipamento exige a apresentação desta OS.'];
 function pdf(id){
@@ -215,14 +239,23 @@ function pdf(id){
 /* ---- Produtos / Serviços / Fornecedores ---- */
 function fProd(id){
   const p=S.prod.find(x=>x.id==id)||{};
-  M(`<h3>${id?'Editar produto':'Novo produto'}</h3><div class="g"><div><label>Nome</label><input id="p_n" value="${E(p.nome)}"></div><div><label>SKU / código</label><input id="p_k" value="${E(p.sku)}"></div>
-  <div><label>Unidade</label><input id="p_u" value="${E(p.unidade||'un')}"></div><div><label>Fornecedor</label><select id="p_f"><option value="">—</option>${S.forn.map(f=>`<option value="${f.id}" ${f.id==p.fornecedor_id?'selected':''}>${E(f.nome)}</option>`).join('')}</select></div>
+  M(`<h3>${id?'Editar produto':'Novo produto'}</h3><div class="g"><div><label>Nome</label><input id="p_n" value="${E(p.nome)}"></div><div><label>SKU / código interno</label><input id="p_k" value="${E(p.sku)}"></div>
+  <div><label>Código de barras</label><input id="p_b" value="${E(p.codigo_barras)}"></div><div><label>Unidade</label><input id="p_u" value="${E(p.unidade||'un')}"></div>
+  <div><label>Fornecedor</label><select id="p_f"><option value="">—</option>${S.forn.map(f=>`<option value="${f.id}" ${f.id==p.fornecedor_id?'selected':''}>${E(f.nome)}</option>`).join('')}</select></div>
   <div><label>Custo (R$)</label><input id="p_c" type="number" step="0.01" value="${p.custo||0}"></div><div><label>Preço de venda (R$)</label><input id="p_v" type="number" step="0.01" value="${p.preco||0}"></div>
   <div><label>Estoque atual</label><input id="p_e" type="number" step="0.01" value="${p.estoque||0}"></div><div><label>Estoque mínimo</label><input id="p_m" type="number" step="0.01" value="${p.estoque_min||0}"></div></div>
   <div class="acts"><button class="p" onclick="saveProd(${id||0})">Salvar produto</button><button onclick="X()">Fechar</button></div>`)}
 async function saveProd(id){
-  const r={nome:$('p_n').value.trim(),sku:$('p_k').value,unidade:$('p_u').value||'un',fornecedor_id:$('p_f').value||null,custo:+$('p_c').value||0,preco:+$('p_v').value||0,estoque:+$('p_e').value||0,estoque_min:+$('p_m').value||0};
+  const r={nome:$('p_n').value.trim(),sku:$('p_k').value,codigo_barras:$('p_b').value,unidade:$('p_u').value||'un',fornecedor_id:$('p_f').value||null,custo:+$('p_c').value||0,preco:+$('p_v').value||0,estoque:+$('p_e').value||0,estoque_min:+$('p_m').value||0};
   if(!r.nome)return alert('Informe o nome.');if(await run(id?db.from('produtos').update(r).eq('id',id):db.from('produtos').insert(r))){X();refresh()}}
+function histProd(id){
+  const p=S.prod.find(x=>x.id==id),
+  vendas=S.os.filter(o=>(o.itens||[]).some(i=>i.produto_id==id)).sort((a,b)=>b.id-a.id),
+  compras=S.cmp.filter(c=>(c.itens||[]).some(i=>i.produto_id==id)).sort((a,b)=>b.id-a.id);
+  M(`<h3>Histórico · ${E(p.nome)}</h3><p class="mu">${p.sku?'SKU '+E(p.sku)+' · ':''}${p.codigo_barras?'Cód. barras '+E(p.codigo_barras):''}</p>
+  <h3>Vendas (em OS)</h3>${vendas.map(o=>{const i=o.itens.find(x=>x.produto_id==id);return `<div class="t"><div class="h"><b>OS #${o.id} · ${E(cn(o.cliente_id))}</b><span class="mu">${new Date(o.criado).toLocaleDateString('pt-BR')} · ${E(o.status)}</span></div><div>${i.q} un · ${R$(i.v)} cada</div></div>`}).join('')||'<p class="mu">Nenhuma venda registrada.</p>'}
+  <h3>Compras (entrada de estoque)</h3>${compras.map(c=>{const i=c.itens.find(x=>x.produto_id==id);return `<div class="t"><div class="h"><b>Compra #${c.id} · ${E(fn(c.fornecedor_id))}</b><span class="mu">${D(c.data)}</span></div><div>${i.qtd} un · ${R$(i.custo)} cada</div></div>`}).join('')||'<p class="mu">Nenhuma compra registrada.</p>'}
+  <div class="acts"><button onclick="X()">Fechar</button></div>`)}
 function fServ(id){
   const s=S.srv.find(x=>x.id==id)||{};
   M(`<h3>${id?'Editar serviço':'Novo serviço'}</h3><label>Nome</label><input id="s_n" value="${E(s.nome)}"><label>Preço padrão (R$)</label><input id="s_v" type="number" step="0.01" value="${s.preco||0}"><label>Descrição</label><textarea id="s_d">${E(s.descricao)}</textarea>
@@ -240,21 +273,23 @@ async function saveForn(id){
 
 /* ---- Compras (dá entrada no estoque e gera conta a pagar) ---- */
 function fCompra(){cur=[];
-  M(`<h3>Nova compra</h3><label>Fornecedor</label><select id="cp_f"><option value="">Escolher…</option>${S.forn.map(f=>`<option value="${f.id}">${E(f.nome)}</option>`).join('')}</select>
-  <label>Data</label><input id="cp_d" type="date" value="${today()}"><h3>Itens comprados</h3><div id="ci"></div><button onclick="cur.push({produto_id:'',nome:'',qtd:1,custo:0});citems()">Adicionar item</button>
+  M(`<h3>Nova compra</h3><div class="g"><div><label>Fornecedor</label><select id="cp_f"><option value="">Escolher…</option>${S.forn.map(f=>`<option value="${f.id}">${E(f.nome)}</option>`).join('')}</select></div><div><label>Data da compra</label><input id="cp_d" type="date" value="${today()}"></div>
+  <div><label>Número da NF</label><input id="cp_nn"></div><div><label>Chave da NF (44 dígitos)</label><input id="cp_ck"></div>
+  <div><label>Forma de pagamento</label><select id="cp_fp">${opts(FP.concat('Boleto/Prazo'))}</select></div><div><label>Valor do frete (R$)</label><input id="cp_fr" type="number" step="0.01" value="0" onchange="citems()"></div></div>
+  <h3>Itens comprados</h3><div id="ci"></div><button onclick="cur.push({produto_id:'',nome:'',qtd:1,custo:0});citems()">Adicionar item</button>
   <p><b id="ct"></b></p><label>Prazo para pagamento em dias (0 = à vista, ou vários separados por barra: 30/60)</label><input id="cp_p" placeholder="0">
   <div class="acts"><button class="p" onclick="saveCompra()">Salvar compra</button><button onclick="X()">Fechar</button></div>`);citems()}
 function citems(){
   $('ci').innerHTML=cur.map((i,k)=>`<div class="r"><select style="width:170px" onchange="const p=S.prod.find(x=>x.id==+this.value);cur[${k}].produto_id=this.value;cur[${k}].nome=p?p.nome:'';cur[${k}].custo=p?p.custo:0;citems()"><option value="">Produto…</option>${S.prod.map(p=>`<option value="${p.id}" ${p.id==i.produto_id?'selected':''}>${E(p.nome)}</option>`).join('')}</select><input type="number" min="1" value="${i.qtd}" style="width:64px" onchange="cur[${k}].qtd=+this.value;citems()"><input type="number" step="0.01" value="${i.custo}" style="width:100px" onchange="cur[${k}].custo=+this.value;citems()"><button onclick="cur.splice(${k},1);citems()">✕</button></div>`).join('');
-  $('ct').textContent='Total: '+R$(cur.reduce((s,i)=>s+i.qtd*i.custo,0))}
+  const fr=+($('cp_fr')?.value)||0;$('ct').textContent='Itens: '+R$(cur.reduce((s,i)=>s+i.qtd*i.custo,0))+' + frete '+R$(fr)+' = Total: '+R$(cur.reduce((s,i)=>s+i.qtd*i.custo,0)+fr)}
 async function saveCompra(){
-  const forn=$('cp_f').value,dt=$('cp_d').value,total=cur.reduce((s,i)=>s+i.qtd*i.custo,0),itens=cur.filter(i=>i.produto_id);
+  const forn=$('cp_f').value,dt=$('cp_d').value,frete=+$('cp_fr').value||0,total=cur.reduce((s,i)=>s+i.qtd*i.custo,0)+frete,itens=cur.filter(i=>i.produto_id);
   if(!itens.length)return alert('Adicione ao menos um item com produto selecionado.');
-  const{data,error}=await db.from('compras').insert({fornecedor_id:forn||null,itens,total,data:dt}).select().single();
+  const{data,error}=await db.from('compras').insert({fornecedor_id:forn||null,itens,total,data:dt,numero_nf:$('cp_nn').value,chave_nf:$('cp_ck').value,forma_pagamento:$('cp_fp').value,frete}).select().single();
   if(error)return alert('Erro: '+error.message);
   for(const i of itens)await db.from('produtos').update({estoque:(S.prod.find(p=>p.id==i.produto_id)?.estoque||0)+i.qtd}).eq('id',i.produto_id);
   const pz=$('cp_p').value.split('/').map(x=>parseInt(x)).filter(x=>x>=0),p=pz.length?pz:[0],v=Math.floor(total/p.length*100)/100;
-  const rows=p.map((d,i)=>({tipo:'P',compra_id:data.id,descr:'Compra #'+data.id+(forn?' · '+fn(forn):''),parcela:p.length>1?`${i+1}/${p.length}`:null,valor:i==p.length-1?+(total-v*(p.length-1)).toFixed(2):v,venc:addDays(dt,d)}));
+  const rows=p.map((d,i)=>({tipo:'P',compra_id:data.id,descr:'Compra #'+data.id+(forn?' · '+fn(forn):'')+($('cp_nn').value?' · NF '+$('cp_nn').value:''),parcela:p.length>1?`${i+1}/${p.length}`:null,valor:i==p.length-1?+(total-v*(p.length-1)).toFixed(2):v,venc:addDays(dt,d)}));
   await db.from('fin').insert(rows);X();refresh()}
 
 /* ---- Orçamentos ---- */
