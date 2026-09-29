@@ -75,6 +75,8 @@ const M=h=>{$('mod').innerHTML=`<div class="box">${h}</div>`;$('mod').style.disp
 async function run(p){const{error}=await p;if(error){alert('Erro: '+error.message);return false}return true}
 async function load(){[S.cli,S.tec,S.os,S.fin,S.per]=await Promise.all(['clientes','tecnicos','os','fin','perfis'].map(t=>db.from(t).select('*').then(r=>r.data||[])))}
 async function refresh(){await load();draw()}
+function fMes(v){const a=fFm.slice(0,4)||''+(+today().slice(0,4));fFm=v?a+'-'+v:'';draw()}
+function fAno(v){const m=fFm.slice(5,7)||'';fFm=v?v+(m?'-'+m:'-01'):'';draw()}
 
 async function boot(){
   const{data:{session}}=await db.auth.getSession();if(!session)return;
@@ -108,7 +110,9 @@ financeiro(){
   const porMes=x=>!fFm||x.venc.startsWith(fFm);
   return `<div class="kp"><div><span class="mu">A receber</span><b style="color:var(--ok)">${R$(sm(F.filter(x=>pen(x)&&x.tipo=='R'&&porMes(x))))}</b></div><div><span class="mu">A pagar</span><b style="color:var(--au)">${R$(sm(F.filter(x=>pen(x)&&x.tipo=='P'&&porMes(x))))}</b></div><div><span class="mu">Vencidas</span><b style="color:var(--er)">${R$(sm(F.filter(x=>pen(x)&&x.venc<t&&porMes(x))))}</b></div><div><span class="mu">Saldo de ${fFm?D(fFm+'-01').slice(3):'este mês'}</span><b>${R$(sal)}</b></div></div>
   <div class="bar"><button class="${fT=='R'?'on':''}" onclick="fT='R';draw()">Contas a receber</button><button class="${fT=='P'?'on':''}" onclick="fT='P';draw()">Contas a pagar</button>
-  <input type="month" value="${fFm}" style="width:auto" onchange="fFm=this.value;draw()">${fFm?'<button onclick="fFm=\'\';draw()">Ver tudo</button>':''}
+  <select style="width:auto" onchange="fMes(this.value)"><option value="">Mês…</option>${['01-Janeiro','02-Fevereiro','03-Março','04-Abril','05-Maio','06-Junho','07-Julho','08-Agosto','09-Setembro','10-Outubro','11-Novembro','12-Dezembro'].map(m=>`<option value="${m.slice(0,2)}" ${fFm.slice(5,7)==m.slice(0,2)?'selected':''}>${m.slice(3)}</option>`).join('')}</select>
+  <select style="width:auto" onchange="fAno(this.value)"><option value="">Ano…</option>${(()=>{const y0=+today().slice(0,4),a=[];for(let y=y0-2;y<=y0+1;y++)a.push(y);return a.map(y=>`<option ${fFm.slice(0,4)==''+y?'selected':''}>${y}</option>`).join('')})()}</select>
+  ${fFm?'<button onclick="fFm=\'\';draw()">Ver tudo</button>':''}
   ${can('financeiro','e')?'<button class="p" style="margin-left:auto" onclick="fFin()">Lançar conta</button>':''}</div>`+
   (F.filter(x=>x.tipo==fT&&porMes(x)).sort((a,b)=>a.venc<b.venc?-1:1).map(x=>{const v=!x.pago&&x.venc<t;return `<div class="t ${x.pago?'ok':v?'er':''}"><div class="h"><b>${E(x.descr)} ${x.parcela?'· parcela '+x.parcela:''}</b><b>${R$(x.valor)}</b></div><div class="mu">Vence ${D(x.venc)} · ${x.pago?`Pago em ${D(x.data_pag)} (${E(x.forma)})`:v?'Vencida':'Em aberto'}${x.cliente_id?' · '+E(cn(x.cliente_id)):''}</div><div class="acts">${!x.pago&&can('financeiro','e')?`<button class="p" onclick="baixa(${x.id})">Dar baixa</button>`:''}${can('financeiro','x')?`<button onclick="del('fin',${x.id})">Excluir</button>`:''}</div></div>`}).join('')||'<p class="mu">Nenhum lançamento neste período.</p>')},
 
