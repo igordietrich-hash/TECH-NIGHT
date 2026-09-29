@@ -65,15 +65,18 @@ const today=()=>new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOStr
 const addDays=(d,n)=>{const x=new Date(d+'T12:00:00');x.setDate(x.getDate()+n);return x.toISOString().slice(0,10)};
 const opts=(a,s)=>a.map(x=>`<option ${x==s?'selected':''}>${E(x)}</option>`).join('');
 const ST=['Aberto','Em andamento','Aguardando peça','Aguardando aprovação do orçamento','Concluído','Entregue'];
-const MODS={chamados:'Chamados',clientes:'Clientes',financeiro:'Financeiro',admin:'Administração'};
+const MODS={chamados:'Chamados',orcamentos:'Orçamentos',clientes:'Clientes',produtos:'Produtos',servicos:'Serviços',fornecedores:'Fornecedores',compras:'Compras',financeiro:'Financeiro',admin:'Administração'};
 const FP=['Pix','Dinheiro','Cartão','Transferência'];
-let me,S={cli:[],tec:[],os:[],fin:[],per:[]},tab,fOS={q:'',st:''},fC='',fT='R',fFm='',cur=[];
+let me,S={cli:[],tec:[],os:[],fin:[],per:[],prod:[],srv:[],forn:[],cmp:[],orc:[],emp:{}},tab,fOS={q:'',st:''},fC='',fCa=0,fT='R',fFm='',fP='',fO='',cur=[];
 const can=(m,n)=>me&&(me.admin||me.perms?.[m]?.[n]);
 const tot=o=>(o.itens||[]).reduce((s,i)=>s+i.q*i.v,0);
 const cn=id=>S.cli.find(c=>c.id==id)?.nome||'—',tn=id=>S.tec.find(t=>t.id==id)?.nome||'—';
+const pn=id=>S.prod.find(p=>p.id==id)?.nome||'—',fn=id=>S.forn.find(f=>f.id==id)?.nome||'—';
 const M=h=>{$('mod').innerHTML=`<div class="box">${h}</div>`;$('mod').style.display='flex'},X=()=>{$('mod').style.display='none'};
 async function run(p){const{error}=await p;if(error){alert('Erro: '+error.message);return false}return true}
-async function load(){[S.cli,S.tec,S.os,S.fin,S.per]=await Promise.all(['clientes','tecnicos','os','fin','perfis'].map(t=>db.from(t).select('*').then(r=>r.data||[])))}
+async function load(){
+  [S.cli,S.tec,S.os,S.fin,S.per,S.prod,S.srv,S.forn,S.cmp,S.orc]=await Promise.all(['clientes','tecnicos','os','fin','perfis','produtos','servicos','fornecedores','compras','orcamentos'].map(t=>db.from(t).select('*').then(r=>r.data||[])));
+  S.emp=(await db.from('empresa').select('*').maybeSingle()).data||{nome:'Tech Night',slogan:'',telefone:''}}
 async function refresh(){await load();draw()}
 function fMes(v){const a=fFm.slice(0,4)||''+(+today().slice(0,4));fFm=v?a+'-'+v:'';draw()}
 function fAno(v){const m=fFm.slice(5,7)||'';fFm=v?v+(m?'-'+m:'-01'):'';draw()}
@@ -96,28 +99,61 @@ const V={
 chamados(){
   const l=S.os.filter(o=>(!fOS.st||o.status==fOS.st)&&(!fOS.q||(o.id+' '+cn(o.cliente_id)+' '+o.equip).toLowerCase().includes(fOS.q.toLowerCase()))).sort((a,b)=>b.id-a.id);
   return `<div class="bar"><input placeholder="Buscar por nº, cliente ou equipamento" value="${E(fOS.q)}" onchange="fOS.q=this.value;draw()"><select onchange="fOS.st=this.value;draw()"><option value="">Todos os status</option>${opts(ST,fOS.st)}</select>${can('chamados','e')?'<button class="p" onclick="fOSm(0)">Nova OS</button>':''}</div>`+
-  (l.map(o=>`<div class="t ${o.status=='Concluído'||o.status=='Entregue'?'ok':''}"><div class="h"><b>#${o.id} · ${E(cn(o.cliente_id))}</b><span class="mu">${E(o.equip)} · Técnico: ${E(tn(o.tecnico_id))} · ${E(o.origem)}</span></div><div class="mu">${E(o.problema)}</div>
+  (l.map(o=>`<div class="t ${o.status=='Concluído'||o.status=='Entregue'?'ok':''}"><div class="h"><b>#${o.id} · ${E(cn(o.cliente_id))}</b><span class="mu">${E(o.equip)} · Técnico: ${E(tn(o.tecnico_id))} · ${E(o.origem)}</span></div><div class="mu">${E(o.problema)}</div>${o.solucao?`<div style="margin-top:4px"><span class="tag" style="border-color:var(--ok);color:var(--ok)">Solução</span>${E(o.solucao)}</div>`:''}
   <div class="acts"><select ${can('chamados','e')?'':'disabled'} onchange="setSt(${o.id},this.value)">${opts(ST,o.status)}</select><b>${R$(tot(o))}</b>
   ${can('chamados','e')?`<button onclick="fOSm(${o.id})">Editar</button>`:''}<button onclick="pdf(${o.id})">PDF</button>${can('chamados','x')?`<button onclick="delOS(${o.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhuma OS encontrada.</p>')},
 
+orcamentos(){
+  const l=[...S.orc].sort((a,b)=>b.id-a.id);
+  return `<div class="bar">${can('orcamentos','e')?'<button class="p" onclick="fOrc(0)">Novo orçamento</button>':''}</div>`+
+  (l.map(o=>`<div class="t ${o.status=='Convertido'?'ok':o.status=='Recusado'?'er':''}"><div class="h"><b>#${o.id} · ${E(cn(o.cliente_id))}</b><span class="mu">${new Date(o.criado).toLocaleDateString('pt-BR')}${o.validade?' · válido até '+D(o.validade):''}</span></div>
+  <div><span class="tag">${o.status}</span><b>${R$((o.itens||[]).reduce((s,i)=>s+i.q*i.v,0))}</b></div>
+  <div class="acts">${o.status=='Aberto'&&can('orcamentos','e')?`<button onclick="fOrc(${o.id})">Editar</button><button class="p" onclick="aprovarOrc(${o.id})">Aprovar → gerar OS</button><button onclick="stOrc(${o.id},'Recusado')">Recusar</button>`:''}<button onclick="pdfOrc(${o.id})">PDF</button>${o.os_id?`<span class="mu">Virou OS #${o.os_id}</span>`:''}${can('orcamentos','x')?`<button onclick="del('orcamentos',${o.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhum orçamento cadastrado.</p>')},
+
+produtos(){
+  return `<div class="bar"><input placeholder="Buscar produto" value="${E(fP)}" onchange="fP=this.value;draw()">${can('produtos','e')?'<button class="p" onclick="fProd(0)">Novo produto</button>':''}</div>`+
+  (S.prod.filter(p=>!fP||(p.nome+(p.sku||'')).toLowerCase().includes(fP.toLowerCase())).map(p=>`<div class="t ${p.estoque<=p.estoque_min?'er':''}"><div class="h"><b>${E(p.nome)}</b><span class="mu">${p.sku?'SKU '+E(p.sku)+' · ':''}${E(fn(p.fornecedor_id))}</span></div>
+  <div class="mu">Custo ${R$(p.custo)} · Venda ${R$(p.preco)}</div><div><b>Estoque: ${p.estoque} ${E(p.unidade)}</b>${p.estoque<=p.estoque_min?' <span class="tag" style="border-color:var(--er);color:var(--er)">Estoque baixo</span>':''}</div>
+  <div class="acts">${can('produtos','e')?`<button onclick="fProd(${p.id})">Editar</button>`:''}${can('produtos','x')?`<button onclick="del('produtos',${p.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhum produto cadastrado.</p>')},
+
+servicos(){
+  return `<div class="bar">${can('servicos','e')?'<button class="p" onclick="fServ(0)">Novo serviço</button>':''}</div>`+
+  (S.srv.map(s=>`<div class="t"><div class="h"><b>${E(s.nome)}</b><b>${R$(s.preco)}</b></div>${s.descricao?`<div class="mu">${E(s.descricao)}</div>`:''}<div class="acts">${can('servicos','e')?`<button onclick="fServ(${s.id})">Editar</button>`:''}${can('servicos','x')?`<button onclick="del('servicos',${s.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhum serviço cadastrado.</p>')},
+
+fornecedores(){
+  return `<div class="bar">${can('fornecedores','e')?'<button class="p" onclick="fForn(0)">Novo fornecedor</button>':''}</div>`+
+  (S.forn.map(f=>`<div class="t"><div class="h"><b>${E(f.nome)}</b><span class="mu">${E(f.telefone)} ${E(f.email)}</span></div>${f.endereco?`<div class="mu">${E(f.endereco)}</div>`:''}<div class="acts">${can('fornecedores','e')?`<button onclick="fForn(${f.id})">Editar</button>`:''}${can('fornecedores','x')?`<button onclick="del('fornecedores',${f.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhum fornecedor cadastrado.</p>')},
+
+compras(){
+  return `<div class="bar">${can('compras','e')?'<button class="p" onclick="fCompra()">Nova compra</button>':''}</div>`+
+  ([...S.cmp].sort((a,b)=>b.id-a.id).map(c=>`<div class="t"><div class="h"><b>Compra #${c.id} · ${E(fn(c.fornecedor_id))}</b><span class="mu">${D(c.data)}</span></div><div class="mu">${(c.itens||[]).map(i=>i.nome+' ('+i.qtd+')').join(', ')}</div>
+  <div><b>${R$(c.total)}</b></div><div class="acts">${can('compras','x')?`<button onclick="del('compras',${c.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhuma compra registrada.</p>')},
+
 clientes(){
-  return `<div class="bar"><input placeholder="Buscar cliente" value="${E(fC)}" onchange="fC=this.value;draw()">${can('clientes','e')?'<button class="p" onclick="fCli(0)">Novo cliente</button>':''}</div>`+
-  (S.cli.filter(c=>!fC||(c.nome+(c.telefone||'')).toLowerCase().includes(fC.toLowerCase())).map(c=>`<div class="t"><div class="h"><b>${E(c.nome)}</b><span class="mu">${E(c.telefone)} ${E(c.email)}</span></div><div class="acts"><button onclick="hist(${c.id})">Histórico (${S.os.filter(o=>o.cliente_id==c.id).length})</button>${can('clientes','e')?`<button onclick="fCli(${c.id})">Editar</button>`:''}${can('clientes','x')?`<button onclick="del('clientes',${c.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhum cliente cadastrado.</p>')},
+  return `<div class="bar"><input placeholder="Buscar cliente" value="${E(fC)}" onchange="fC=this.value;draw()"><button class="${fCa?'on':''}" onclick="fCa=fCa?0:1;draw()">${fCa?'Mostrando inativos':'Mostrar inativos'}</button>${can('clientes','e')?'<button class="p" onclick="fCli(0)">Novo cliente</button>':''}</div>`+
+  (S.cli.filter(c=>(fCa||c.ativo!==false)&&(!fC||(c.nome+(c.telefone||'')).toLowerCase().includes(fC.toLowerCase()))).map(c=>`<div class="t ${c.ativo===false?'er':''}"><div class="h"><b>${E(c.nome)}</b><span class="mu">${E(c.telefone)} ${E(c.email)}</span></div><div class="mu">${c.endereco?E(c.endereco)+' · ':''}${c.ie?'IE '+E(c.ie):''}</div>
+  <div>${c.ativo===false?'<span class="tag" style="border-color:var(--er);color:var(--er)">Inativo</span>':''}${c.limite_credito?`<span class="tag">Limite ${R$(c.limite_credito)}</span>`:''}</div>
+  <div class="acts"><button onclick="hist(${c.id})">Histórico (${S.os.filter(o=>o.cliente_id==c.id).length})</button>${can('clientes','e')?`<button onclick="fCli(${c.id})">Editar</button>`:''}${can('clientes','x')?`<button onclick="del('clientes',${c.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhum cliente encontrado.</p>')},
 
 financeiro(){
   const F=S.fin,t=today(),mes=fFm||t.slice(0,7),pen=x=>!x.pago,sm=a=>a.reduce((s,x)=>s+ +x.valor,0);
   const sal=sm(F.filter(x=>x.pago&&x.tipo=='R'&&(x.data_pag||'').startsWith(mes)))-sm(F.filter(x=>x.pago&&x.tipo=='P'&&(x.data_pag||'').startsWith(mes)));
   const porMes=x=>!fFm||x.venc.startsWith(fFm);
   return `<div class="kp"><div><span class="mu">A receber</span><b style="color:var(--ok)">${R$(sm(F.filter(x=>pen(x)&&x.tipo=='R'&&porMes(x))))}</b></div><div><span class="mu">A pagar</span><b style="color:var(--au)">${R$(sm(F.filter(x=>pen(x)&&x.tipo=='P'&&porMes(x))))}</b></div><div><span class="mu">Vencidas</span><b style="color:var(--er)">${R$(sm(F.filter(x=>pen(x)&&x.venc<t&&porMes(x))))}</b></div><div><span class="mu">Saldo de ${fFm?D(fFm+'-01').slice(3):'este mês'}</span><b>${R$(sal)}</b></div></div>
-  <div class="bar"><button class="${fT=='R'?'on':''}" onclick="fT='R';draw()">Contas a receber</button><button class="${fT=='P'?'on':''}" onclick="fT='P';draw()">Contas a pagar</button>
+  <div class="bar"><button class="${fT=='R'?'on':''}" onclick="fT='R';draw()">Contas a receber</button><button class="${fT=='P'?'on':''}" onclick="fT='P';draw()">Contas a pagar</button><button class="${fT=='X'?'on':''}" onclick="fT='X';draw()">Recibos</button>
   <select style="width:auto" onchange="fMes(this.value)"><option value="">Mês…</option>${['01-Janeiro','02-Fevereiro','03-Março','04-Abril','05-Maio','06-Junho','07-Julho','08-Agosto','09-Setembro','10-Outubro','11-Novembro','12-Dezembro'].map(m=>`<option value="${m.slice(0,2)}" ${fFm.slice(5,7)==m.slice(0,2)?'selected':''}>${m.slice(3)}</option>`).join('')}</select>
   <select style="width:auto" onchange="fAno(this.value)"><option value="">Ano…</option>${(()=>{const y0=+today().slice(0,4),a=[];for(let y=y0-2;y<=y0+1;y++)a.push(y);return a.map(y=>`<option ${fFm.slice(0,4)==''+y?'selected':''}>${y}</option>`).join('')})()}</select>
   ${fFm?'<button onclick="fFm=\'\';draw()">Ver tudo</button>':''}
-  ${can('financeiro','e')?'<button class="p" style="margin-left:auto" onclick="fFin()">Lançar conta</button>':''}</div>`+
-  (F.filter(x=>x.tipo==fT&&porMes(x)).sort((a,b)=>a.venc<b.venc?-1:1).map(x=>{const v=!x.pago&&x.venc<t;return `<div class="t ${x.pago?'ok':v?'er':''}"><div class="h"><b>${E(x.descr)} ${x.parcela?'· parcela '+x.parcela:''}</b><b>${R$(x.valor)}</b></div><div class="mu">Vence ${D(x.venc)} · ${x.pago?`Pago em ${D(x.data_pag)} (${E(x.forma)})`:v?'Vencida':'Em aberto'}${x.cliente_id?' · '+E(cn(x.cliente_id)):''}</div><div class="acts">${!x.pago&&can('financeiro','e')?`<button class="p" onclick="baixa(${x.id})">Dar baixa</button>`:''}${can('financeiro','x')?`<button onclick="del('fin',${x.id})">Excluir</button>`:''}</div></div>`}).join('')||'<p class="mu">Nenhum lançamento neste período.</p>')},
+  ${can('financeiro','e')?`<button class="p" style="margin-left:auto" onclick="${fT=='X'?'fRecAvulso()':'fFin()'}">${fT=='X'?'Novo recibo avulso':'Lançar conta'}</button>`:''}</div>`+
+  (fT=='X'?(F.filter(x=>x.pago).sort((a,b)=>(b.data_pag||'').localeCompare(a.data_pag||'')).map(x=>`<div class="t ok"><div class="h"><b>${E(x.descr)}</b><b>${R$(+x.valor+ +(x.juros||0))}</b></div><div class="mu">Pago em ${D(x.data_pag)} (${E(x.forma)})${x.juros?' · inclui '+R$(x.juros)+' de juros':''}</div><div class="acts"><button onclick="recibo(${x.id})">Gerar recibo</button></div></div>`).join('')||'<p class="mu">Nenhum lançamento pago ainda.</p>'):
+  F.filter(x=>x.tipo==fT&&porMes(x)).sort((a,b)=>a.venc<b.venc?-1:1).map(x=>{const v=!x.pago&&x.venc<t;return `<div class="t ${x.pago?'ok':v?'er':''}"><div class="h"><b>${E(x.descr)} ${x.parcela?'· parcela '+x.parcela:''}</b><b>${R$(x.valor)}${x.juros?' + '+R$(x.juros)+' juros':''}</b></div><div class="mu">Vence ${D(x.venc)} · ${x.pago?`Pago em ${D(x.data_pag)} (${E(x.forma)})`:v?'Vencida':'Em aberto'}${x.cliente_id?' · '+E(cn(x.cliente_id)):''}</div><div class="acts">${!x.pago&&can('financeiro','e')?`<button class="p" onclick="baixa(${x.id})">Dar baixa</button>`:''}${x.pago?`<button onclick="recibo(${x.id})">Recibo</button>`:''}${can('financeiro','x')?`<button onclick="del('fin',${x.id})">Excluir</button>`:''}</div></div>`}).join('')||'<p class="mu">Nenhum lançamento neste período.</p>')},
 
 admin(){
-  return `<div class="h"><h3>Usuários</h3>${can('admin','e')?'<button class="p" onclick="fUser(\'\')">Novo usuário</button>':''}</div>`+
+  const e=S.emp;
+  return `<div class="h"><h3>Dados da empresa</h3></div><div class="t"><div class="g"><div><label>Nome</label><input id="e_n" value="${E(e.nome)}" ${can('admin','e')?'':'disabled'}></div><div><label>Telefone / WhatsApp</label><input id="e_t" value="${E(e.telefone)}" ${can('admin','e')?'':'disabled'}></div>
+  <div><label>CNPJ</label><input id="e_d" value="${E(e.cnpj)}" ${can('admin','e')?'':'disabled'}></div></div><label>Slogan</label><input id="e_s" value="${E(e.slogan)}" ${can('admin','e')?'':'disabled'}><label>Endereço</label><input id="e_a" value="${E(e.endereco)}" ${can('admin','e')?'':'disabled'}>
+  ${can('admin','e')?'<div class="acts"><button class="p" onclick="saveEmp()">Salvar dados da empresa</button></div>':''}</div>
+  <div class="h"><h3>Usuários</h3>${can('admin','e')?'<button class="p" onclick="fUser(\'\')">Novo usuário</button>':''}</div>`+
   S.per.map(p=>`<div class="t"><div class="h"><b>${E(p.nome)}</b><span>${p.admin?'<span class="tag">Administrador</span>':''}<span class="mu">${Object.keys(MODS).filter(m=>p.perms?.[m]&&Object.values(p.perms[m]).some(Boolean)).map(m=>MODS[m]).join(', ')}</span></span></div><div class="acts">${can('admin','e')?`<button onclick="fUser('${p.id}')">Permissões</button>`:''}${p.id!=me.id&&can('admin','x')?`<button onclick="del('perfis','${p.id}')">Remover acesso</button>`:''}</div></div>`).join('')+
   `<div class="h"><h3>Técnicos</h3>${can('admin','e')?'<button class="p" onclick="fTec()">Novo técnico</button>':''}</div>`+
   (S.tec.map(t=>`<div class="t"><div class="h"><b>${E(t.nome)}</b><span class="mu">Usuário: ${E(S.per.find(p=>p.id==t.perfil_id)?.nome||'não associado')}</span></div><div class="acts">${can('admin','e')?`<button onclick="fTec(${t.id})">Editar</button>`:''}${can('admin','x')?`<button onclick="del('tecnicos',${t.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhum técnico cadastrado.</p>')}
@@ -135,14 +171,16 @@ function fOSm(id){
   <div><label>Marca / modelo</label><input id="o_m" value="${E(o.equip)}"></div><div><label>Nº de série</label><input id="o_s" value="${E(o.serie)}"></div>
   <div><label>Senha / padrão (não sai no PDF)</label><input id="o_p" value="${E(o.senha)}"></div></div>
   <label>Acessórios deixados</label><input id="o_a" value="${E(o.acess)}"><label>Estado físico / avarias</label><input id="o_e" value="${E(o.estado)}">
-  <label>Problema relatado</label><textarea id="o_d">${E(o.problema)}</textarea><h3>Orçamento</h3><div id="it"></div>
+  <label>Problema relatado</label><textarea id="o_d">${E(o.problema)}</textarea>
+  <label>Quando o problema acontece (ex.: só ao ligar, começou há 2 semanas)</label><input id="o_q" value="${E(o.quando)}">
+  <label>Solução aplicada pelo técnico</label><textarea id="o_sl">${E(o.solucao)}</textarea><h3>Orçamento</h3><div id="it"></div>
   <div class="acts"><button onclick="cur.push({t:'Serviço',d:'',q:1,v:0});items()">Adicionar item</button><b id="tt"></b></div>
   <div class="acts"><button class="p" onclick="saveOS(${id||0})">Salvar OS</button><button onclick="X()">Fechar</button></div>`);items()}
 function items(){
-  $('it').innerHTML=cur.map((i,k)=>`<div class="r"><select style="width:100px" onchange="cur[${k}].t=this.value">${opts(['Serviço','Peça'],i.t)}</select><input placeholder="Descrição" value="${E(i.d)}" onchange="cur[${k}].d=this.value"><input type="number" min="1" value="${i.q}" style="width:64px" onchange="cur[${k}].q=+this.value;sum()"><input type="number" step="0.01" value="${i.v}" style="width:100px" onchange="cur[${k}].v=+this.value;sum()"><button onclick="cur.splice(${k},1);items()">✕</button></div>`).join('');sum()}
+  $('it').innerHTML=cur.map((i,k)=>`<div class="r"><select style="width:100px" onchange="cur[${k}].t=this.value">${opts(['Serviço','Peça'],i.t)}</select><input placeholder="Descrição" value="${E(i.d)}" onchange="cur[${k}].d=this.value"><input type="number" min="1" value="${i.q}" style="width:64px" onchange="cur[${k}].q=+this.value;sum()"><input type="number" step="0.01" value="${i.v}" style="width:100px" onchange="cur[${k}].v=+this.value;sum()"><select style="width:60px" title="Baixar do estoque" onchange="cur[${k}].produto_id=this.value||null"><option value="">Sem estoque</option>${S.prod.map(p=>`<option value="${p.id}" ${p.id==i.produto_id?'selected':''}>${E(p.nome)}</option>`).join('')}</select><button onclick="cur.splice(${k},1);items()">✕</button></div>`).join('');sum()}
 const sum=()=>$('tt').textContent='Total: '+R$(cur.reduce((s,i)=>s+i.q*i.v,0));
 async function saveOS(id){
-  const r={cliente_id:+$('o_c').value||null,tecnico_id:+$('o_t').value||null,origem:$('o_o').value,equip:$('o_m').value,serie:$('o_s').value,senha:$('o_p').value,acess:$('o_a').value,estado:$('o_e').value,problema:$('o_d').value,itens:cur};
+  const r={cliente_id:+$('o_c').value||null,tecnico_id:+$('o_t').value||null,origem:$('o_o').value,equip:$('o_m').value,serie:$('o_s').value,senha:$('o_p').value,acess:$('o_a').value,estado:$('o_e').value,problema:$('o_d').value,quando:$('o_q').value,solucao:$('o_sl').value,itens:cur};
   if(!r.cliente_id||!r.problema.trim())return alert('Informe o cliente e o problema relatado.');
   if(await run(id?db.from('os').update(r).eq('id',id):db.from('os').insert({...r,status:'Aberto'}))){X();refresh()}}
 async function setSt(id,v){
@@ -161,25 +199,99 @@ async function conc(id){
   if(rest>0){const p=pz.length?pz:[0],v=Math.floor(rest/p.length*100)/100;
     p.forEach((d,i)=>rows.push({...b,parcela:p.length>1?`${i+1}/${p.length}`:null,valor:i==p.length-1?+(rest-v*(p.length-1)).toFixed(2):v,venc:addDays(t0,d)}))}
   if(rows.length&&!await run(db.from('fin').insert(rows)))return;
+  for(const i of(o.itens||[]))if(i.produto_id){const p=S.prod.find(x=>x.id==+i.produto_id);if(p)await db.from('produtos').update({estoque:p.estoque-i.q}).eq('id',p.id)}
   if(await run(db.from('os').update({status:'Concluído'}).eq('id',id))){X();refresh()}}
 
 const TERMOS=['Garantia de 90 dias sobre o serviço executado e as peças substituídas, contados da data de entrega.','A garantia não cobre mau uso, quedas, contato com líquidos, violação de lacres ou defeitos sem relação com o serviço realizado.','Se forem encontrados novos defeitos, um novo orçamento será apresentado e só será executado com a aprovação do cliente.','A Tech Night não se responsabiliza por perda de dados. O backup é de responsabilidade do cliente.','Após 90 dias do aviso de conclusão, poderá ser cobrada taxa de armazenagem do equipamento.','A retirada do equipamento exige a apresentação desta OS.'];
 function pdf(id){
-  const o=S.os.find(x=>x.id==id),c=S.cli.find(x=>x.id==o.cliente_id)||{};
-  $('print').innerHTML=`<div class="ph"><img src="logo.png" alt=""><div><h1>TECH NIGHT</h1><i>Conectando você à solução, a qualquer hora!</i><br>WhatsApp: (51) 99563-4449</div></div>
+  const o=S.os.find(x=>x.id==id),c=S.cli.find(x=>x.id==o.cliente_id)||{},e=S.emp;
+  $('print').innerHTML=`<div class="ph"><img src="logo.png" alt=""><div><h1>${E(e.nome).toUpperCase()}</h1><i>${E(e.slogan)}</i><br>${e.endereco?E(e.endereco)+'<br>':''}${E(e.telefone)}</div></div>
   <h2>Ordem de Serviço nº ${o.id}</h2><p>Data: ${new Date(o.criado).toLocaleDateString('pt-BR')} · Status: ${E(o.status)}</p>
-  <p><b>Cliente:</b> ${E(c.nome)} ${E(c.telefone)}<br><b>Equipamento:</b> ${E(o.equip)} ${o.serie?'· Série '+E(o.serie):''}<br><b>Acessórios:</b> ${E(o.acess)}<br><b>Estado:</b> ${E(o.estado)}<br><b>Problema relatado:</b> ${E(o.problema)}</p>
+  <p><b>Cliente:</b> ${E(c.nome)} ${E(c.telefone)}<br><b>Equipamento:</b> ${E(o.equip)} ${o.serie?'· Série '+E(o.serie):''}<br><b>Acessórios:</b> ${E(o.acess)}<br><b>Estado:</b> ${E(o.estado)}<br><b>Problema relatado:</b> ${E(o.problema)}${o.quando?'<br><b>Quando ocorre:</b> '+E(o.quando):''}${o.solucao?'<br><b>Solução aplicada:</b> '+E(o.solucao):''}</p>
   <table><tr><th>Tipo</th><th>Descrição</th><th>Qtd</th><th>Valor</th><th>Subtotal</th></tr>${(o.itens||[]).map(i=>`<tr><td>${i.t}</td><td>${E(i.d)}</td><td>${i.q}</td><td>${R$(i.v)}</td><td>${R$(i.q*i.v)}</td></tr>`).join('')}</table>
   <h3 style="color:#000">Total: ${R$(tot(o))}</h3><h4>Garantia e condições</h4><ol>${TERMOS.map(t=>`<li>${t}</li>`).join('')}</ol><p style="margin-top:36px">______________________________<br>Assinatura do cliente</p>`;
   print()}
 
-/* ---- Clientes ---- */
+/* ---- Produtos / Serviços / Fornecedores ---- */
+function fProd(id){
+  const p=S.prod.find(x=>x.id==id)||{};
+  M(`<h3>${id?'Editar produto':'Novo produto'}</h3><div class="g"><div><label>Nome</label><input id="p_n" value="${E(p.nome)}"></div><div><label>SKU / código</label><input id="p_k" value="${E(p.sku)}"></div>
+  <div><label>Unidade</label><input id="p_u" value="${E(p.unidade||'un')}"></div><div><label>Fornecedor</label><select id="p_f"><option value="">—</option>${S.forn.map(f=>`<option value="${f.id}" ${f.id==p.fornecedor_id?'selected':''}>${E(f.nome)}</option>`).join('')}</select></div>
+  <div><label>Custo (R$)</label><input id="p_c" type="number" step="0.01" value="${p.custo||0}"></div><div><label>Preço de venda (R$)</label><input id="p_v" type="number" step="0.01" value="${p.preco||0}"></div>
+  <div><label>Estoque atual</label><input id="p_e" type="number" step="0.01" value="${p.estoque||0}"></div><div><label>Estoque mínimo</label><input id="p_m" type="number" step="0.01" value="${p.estoque_min||0}"></div></div>
+  <div class="acts"><button class="p" onclick="saveProd(${id||0})">Salvar produto</button><button onclick="X()">Fechar</button></div>`)}
+async function saveProd(id){
+  const r={nome:$('p_n').value.trim(),sku:$('p_k').value,unidade:$('p_u').value||'un',fornecedor_id:$('p_f').value||null,custo:+$('p_c').value||0,preco:+$('p_v').value||0,estoque:+$('p_e').value||0,estoque_min:+$('p_m').value||0};
+  if(!r.nome)return alert('Informe o nome.');if(await run(id?db.from('produtos').update(r).eq('id',id):db.from('produtos').insert(r))){X();refresh()}}
+function fServ(id){
+  const s=S.srv.find(x=>x.id==id)||{};
+  M(`<h3>${id?'Editar serviço':'Novo serviço'}</h3><label>Nome</label><input id="s_n" value="${E(s.nome)}"><label>Preço padrão (R$)</label><input id="s_v" type="number" step="0.01" value="${s.preco||0}"><label>Descrição</label><textarea id="s_d">${E(s.descricao)}</textarea>
+  <div class="acts"><button class="p" onclick="saveServ(${id||0})">Salvar serviço</button><button onclick="X()">Fechar</button></div>`)}
+async function saveServ(id){
+  const r={nome:$('s_n').value.trim(),preco:+$('s_v').value||0,descricao:$('s_d').value};if(!r.nome)return alert('Informe o nome.');
+  if(await run(id?db.from('servicos').update(r).eq('id',id):db.from('servicos').insert(r))){X();refresh()}}
+function fForn(id){
+  const f=S.forn.find(x=>x.id==id)||{};
+  M(`<h3>${id?'Editar fornecedor':'Novo fornecedor'}</h3><label>Nome</label><input id="fo_n" value="${E(f.nome)}"><label>Telefone</label><input id="fo_t" value="${E(f.telefone)}"><label>E-mail</label><input id="fo_e" value="${E(f.email)}"><label>CNPJ / CPF</label><input id="fo_d" value="${E(f.doc)}"><label>Endereço</label><input id="fo_a" value="${E(f.endereco)}">
+  <div class="acts"><button class="p" onclick="saveForn(${id||0})">Salvar fornecedor</button><button onclick="X()">Fechar</button></div>`)}
+async function saveForn(id){
+  const r={nome:$('fo_n').value.trim(),telefone:$('fo_t').value,email:$('fo_e').value,doc:$('fo_d').value,endereco:$('fo_a').value};if(!r.nome)return alert('Informe o nome.');
+  if(await run(id?db.from('fornecedores').update(r).eq('id',id):db.from('fornecedores').insert(r))){X();refresh()}}
+
+/* ---- Compras (dá entrada no estoque e gera conta a pagar) ---- */
+function fCompra(){cur=[];
+  M(`<h3>Nova compra</h3><label>Fornecedor</label><select id="cp_f"><option value="">Escolher…</option>${S.forn.map(f=>`<option value="${f.id}">${E(f.nome)}</option>`).join('')}</select>
+  <label>Data</label><input id="cp_d" type="date" value="${today()}"><h3>Itens comprados</h3><div id="ci"></div><button onclick="cur.push({produto_id:'',nome:'',qtd:1,custo:0});citems()">Adicionar item</button>
+  <p><b id="ct"></b></p><label>Prazo para pagamento em dias (0 = à vista, ou vários separados por barra: 30/60)</label><input id="cp_p" placeholder="0">
+  <div class="acts"><button class="p" onclick="saveCompra()">Salvar compra</button><button onclick="X()">Fechar</button></div>`);citems()}
+function citems(){
+  $('ci').innerHTML=cur.map((i,k)=>`<div class="r"><select style="width:170px" onchange="const p=S.prod.find(x=>x.id==+this.value);cur[${k}].produto_id=this.value;cur[${k}].nome=p?p.nome:'';cur[${k}].custo=p?p.custo:0;citems()"><option value="">Produto…</option>${S.prod.map(p=>`<option value="${p.id}" ${p.id==i.produto_id?'selected':''}>${E(p.nome)}</option>`).join('')}</select><input type="number" min="1" value="${i.qtd}" style="width:64px" onchange="cur[${k}].qtd=+this.value;citems()"><input type="number" step="0.01" value="${i.custo}" style="width:100px" onchange="cur[${k}].custo=+this.value;citems()"><button onclick="cur.splice(${k},1);citems()">✕</button></div>`).join('');
+  $('ct').textContent='Total: '+R$(cur.reduce((s,i)=>s+i.qtd*i.custo,0))}
+async function saveCompra(){
+  const forn=$('cp_f').value,dt=$('cp_d').value,total=cur.reduce((s,i)=>s+i.qtd*i.custo,0),itens=cur.filter(i=>i.produto_id);
+  if(!itens.length)return alert('Adicione ao menos um item com produto selecionado.');
+  const{data,error}=await db.from('compras').insert({fornecedor_id:forn||null,itens,total,data:dt}).select().single();
+  if(error)return alert('Erro: '+error.message);
+  for(const i of itens)await db.from('produtos').update({estoque:(S.prod.find(p=>p.id==i.produto_id)?.estoque||0)+i.qtd}).eq('id',i.produto_id);
+  const pz=$('cp_p').value.split('/').map(x=>parseInt(x)).filter(x=>x>=0),p=pz.length?pz:[0],v=Math.floor(total/p.length*100)/100;
+  const rows=p.map((d,i)=>({tipo:'P',compra_id:data.id,descr:'Compra #'+data.id+(forn?' · '+fn(forn):''),parcela:p.length>1?`${i+1}/${p.length}`:null,valor:i==p.length-1?+(total-v*(p.length-1)).toFixed(2):v,venc:addDays(dt,d)}));
+  await db.from('fin').insert(rows);X();refresh()}
+
+/* ---- Orçamentos ---- */
+function fOrc(id){
+  const o=S.orc.find(x=>x.id==id)||{itens:[]};cur=(o.itens||[]).map(i=>({...i}));
+  M(`<h3>${id?'Orçamento #'+id:'Novo orçamento'}</h3><label>Cliente</label><select id="oc_c"><option value="">Escolher…</option>${S.cli.map(c=>`<option value="${c.id}" ${c.id==o.cliente_id?'selected':''}>${E(c.nome)}</option>`).join('')}</select>
+  <label>Validade</label><input id="oc_v" type="date" value="${o.validade||''}"><label>Observações</label><textarea id="oc_o">${E(o.obs)}</textarea>
+  <h3>Itens</h3><label>Adicionar do catálogo</label><select onchange="addCat(this.value);this.value=''"><option value="">Escolher produto ou serviço…</option>${S.srv.map(s=>`<option value="s${s.id}">Serviço: ${E(s.nome)} (${R$(s.preco)})</option>`)}${S.prod.map(p=>`<option value="p${p.id}">Produto: ${E(p.nome)} (${R$(p.preco)})</option>`)}</select>
+  <div id="it"></div><div class="acts"><button onclick="cur.push({t:'Serviço',d:'',q:1,v:0});items()">Adicionar item em branco</button><b id="tt"></b></div>
+  <div class="acts"><button class="p" onclick="saveOrc(${id||0})">Salvar orçamento</button><button onclick="X()">Fechar</button></div>`);items()}
+function addCat(v){if(!v)return;const t=v[0],x=(t=='s'?S.srv:S.prod).find(z=>z.id==+v.slice(1));if(x)cur.push({t:t=='s'?'Serviço':'Peça',d:x.nome,q:1,v:x.preco});items()}
+async function saveOrc(id){
+  const r={cliente_id:+$('oc_c').value||null,validade:$('oc_v').value||null,obs:$('oc_o').value,itens:cur};if(!r.cliente_id)return alert('Escolha o cliente.');
+  if(await run(id?db.from('orcamentos').update(r).eq('id',id):db.from('orcamentos').insert({...r,status:'Aberto'}))){X();refresh()}}
+async function stOrc(id,st){if(await run(db.from('orcamentos').update({status:st}).eq('id',id)))refresh()}
+async function aprovarOrc(id){
+  const o=S.orc.find(x=>x.id==id);if(!confirm('Gerar uma OS a partir deste orçamento?'))return;
+  const{data,error}=await db.from('os').insert({cliente_id:o.cliente_id,origem:'Orçamento',status:'Aberto',problema:'Conforme orçamento nº'+o.id+(o.obs?' — '+o.obs:''),itens:o.itens}).select().single();
+  if(error)return alert('Erro: '+error.message);
+  if(await run(db.from('orcamentos').update({status:'Convertido',os_id:data.id}).eq('id',id)))refresh()}
+function pdfOrc(id){
+  const o=S.orc.find(x=>x.id==id),c=S.cli.find(x=>x.id==o.cliente_id)||{},T=(o.itens||[]).reduce((s,i)=>s+i.q*i.v,0),e=S.emp;
+  $('print').innerHTML=`<div class="ph"><img src="logo.png" alt=""><div><h1>${E(e.nome).toUpperCase()}</h1><i>${E(e.slogan)}</i><br>${E(e.telefone)}</div></div>
+  <h2>Orçamento nº ${o.id}</h2><p>Data: ${new Date(o.criado).toLocaleDateString('pt-BR')}${o.validade?' · Válido até '+D(o.validade):''}</p><p><b>Cliente:</b> ${E(c.nome)} ${E(c.telefone)}</p>
+  <table><tr><th>Tipo</th><th>Descrição</th><th>Qtd</th><th>Valor</th><th>Subtotal</th></tr>${(o.itens||[]).map(i=>`<tr><td>${i.t}</td><td>${E(i.d)}</td><td>${i.q}</td><td>${R$(i.v)}</td><td>${R$(i.q*i.v)}</td></tr>`).join('')}</table>
+  <h3 style="color:#000">Total: ${R$(T)}</h3>${o.obs?'<p>'+E(o.obs)+'</p>':''}<p style="margin-top:36px">______________________________<br>Assinatura do cliente (aprovação)</p>`;print()}
+
+
 function fCli(id){
-  const c=S.cli.find(x=>x.id==id)||{};
-  M(`<h3>${id?'Editar cliente':'Novo cliente'}</h3><label>Nome</label><input id="c_n" value="${E(c.nome)}"><label>Telefone / WhatsApp</label><input id="c_t" value="${E(c.telefone)}"><label>E-mail</label><input id="c_e" value="${E(c.email)}"><label>CPF / CNPJ</label><input id="c_d" value="${E(c.doc)}">
+  const c=S.cli.find(x=>x.id==id)||{ativo:true};
+  M(`<h3>${id?'Editar cliente':'Novo cliente'}</h3><div class="g"><div><label>Nome</label><input id="c_n" value="${E(c.nome)}"></div><div><label>Telefone / WhatsApp</label><input id="c_t" value="${E(c.telefone)}"></div>
+  <div><label>E-mail</label><input id="c_e" value="${E(c.email)}"></div><div><label>CPF / CNPJ</label><input id="c_d" value="${E(c.doc)}"></div>
+  <div><label>Inscrição Estadual</label><input id="c_i" value="${E(c.ie)}"></div><div><label>Limite de crédito (R$)</label><input id="c_l" type="number" step="0.01" value="${c.limite_credito||0}"></div></div>
+  <label>Endereço</label><input id="c_end" value="${E(c.endereco)}"><label><input type="checkbox" id="c_at" style="width:auto" ${c.ativo!==false?'checked':''}> Cliente ativo</label>
   <div class="acts"><button class="p" onclick="saveCli(${id||0})">Salvar cliente</button><button onclick="X()">Fechar</button></div>`)}
 async function saveCli(id){
-  const r={nome:$('c_n').value.trim(),telefone:$('c_t').value,email:$('c_e').value,doc:$('c_d').value};if(!r.nome)return alert('Informe o nome.');
+  const r={nome:$('c_n').value.trim(),telefone:$('c_t').value,email:$('c_e').value,doc:$('c_d').value,ie:$('c_i').value,limite_credito:+$('c_l').value||0,endereco:$('c_end').value,ativo:$('c_at').checked};if(!r.nome)return alert('Informe o nome.');
   if(await run(id?db.from('clientes').update(r).eq('id',id):db.from('clientes').insert(r))){X();refresh()}}
 function hist(id){
   const l=S.os.filter(o=>o.cliente_id==id).sort((a,b)=>b.id-a.id);
@@ -195,8 +307,22 @@ async function saveFin(){
 function baixa(id){
   const x=S.fin.find(f=>f.id==id);
   M(`<h3>Dar baixa · ${E(x.descr)} · ${R$(x.valor)}</h3><label>Forma de pagamento</label><select id="b_f">${opts(FP)}</select><label>Data</label><input id="b_d" type="date" value="${today()}">
+  <label>Juros / multa recebidos além do valor (R$, opcional)</label><input id="b_j" type="number" step="0.01" value="0">
   <div class="acts"><button class="p" onclick="doBaixa(${id})">Confirmar baixa</button><button onclick="X()">Fechar</button></div>`)}
-async function doBaixa(id){if(await run(db.from('fin').update({pago:true,forma:$('b_f').value,data_pag:$('b_d').value}).eq('id',id))){X();refresh()}}
+async function doBaixa(id){if(await run(db.from('fin').update({pago:true,forma:$('b_f').value,data_pag:$('b_d').value,juros:+$('b_j').value||0}).eq('id',id))){X();refresh()}}
+function fRecAvulso(){
+  M(`<h3>Novo recibo avulso</h3><p class="mu">Use para confirmar um pagamento recebido por fora, sem uma conta lançada antes.</p><label>Recebido de</label><input id="r_n"><label>Valor (R$)</label><input id="r_v" type="number" step="0.01"><label>Referente a</label><input id="r_r" placeholder="Ex.: Formatação de notebook"><label>Forma de pagamento</label><select id="r_f">${opts(FP)}</select><label>Data</label><input id="r_d" type="date" value="${today()}">
+  <div class="acts"><button class="p" onclick="saveRecAvulso()">Salvar e gerar recibo</button><button onclick="X()">Fechar</button></div>`)}
+async function saveRecAvulso(){
+  const r={tipo:'R',descr:(($('r_n').value.trim())?$('r_n').value.trim()+' — ':'')+$('r_r').value.trim(),valor:+$('r_v').value||0,venc:$('r_d').value,pago:true,data_pag:$('r_d').value,forma:$('r_f').value};
+  if(!r.valor||!r.descr.trim())return alert('Preencha quem pagou (ou o motivo) e o valor.');
+  const{data,error}=await db.from('fin').insert(r).select().single();if(error)return alert('Erro: '+error.message);
+  await load();X();recibo(data.id);draw()}
+function recibo(id){
+  const x=S.fin.find(f=>f.id==id),e=S.emp,tot=+x.valor+ +(x.juros||0),cli=x.cliente_id?cn(x.cliente_id):(x.descr.includes(' — ')?x.descr.split(' — ')[0]:'');
+  $('print').innerHTML=`<div class="ph"><img src="logo.png" alt=""><div><h1>${E(e.nome).toUpperCase()}</h1><i>${E(e.slogan)}</i><br>${E(e.telefone)}</div></div>
+  <h2>Recibo de pagamento</h2><p>Data: ${D(x.data_pag)} · Forma: ${E(x.forma)}</p><p style="font-size:1.1rem">Recebemos de <b>${E(cli||'—')}</b> a quantia de <b>${R$(tot)}</b>${x.juros?' (sendo '+R$(x.juros)+' referente a juros)':''}, referente a: <b>${E(x.descr)}</b>.</p>
+  <p style="margin-top:60px">${D(today())}</p><p style="margin-top:36px">______________________________<br>${E(e.nome)}</p>`;print()}
 
 /* ---- Administração ---- */
 function fUser(id){
@@ -215,6 +341,9 @@ async function saveUser(id){
   const{data,error}=await c2.auth.signUp({email:em,password:pw});
   if(error||!data.user)return alert('Não foi possível criar o usuário: '+(error?.message||'tente novamente'));
   if(await run(db.from('perfis').insert({...r,id:data.user.id}))){X();refresh()}}
+async function saveEmp(){
+  const r={nome:$('e_n').value.trim(),telefone:$('e_t').value,cnpj:$('e_d').value,slogan:$('e_s').value,endereco:$('e_a').value};
+  if(await run(db.from('empresa').update(r).eq('id',1))){S.emp={...S.emp,...r};alert('Dados salvos.');draw()}}
 function fTec(id){
   const t=S.tec.find(x=>x.id==id)||{};
   M(`<h3>${id?'Editar técnico':'Novo técnico'}</h3><label>Nome do técnico</label><input id="t_n" value="${E(t.nome)}"><label>Usuário associado</label><select id="t_p"><option value="">Nenhum</option>${S.per.map(p=>`<option value="${p.id}" ${p.id==t.perfil_id?'selected':''}>${E(p.nome)}</option>`).join('')}</select>
