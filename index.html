@@ -11,8 +11,10 @@
 body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 header{background:var(--hd);border-bottom:2px solid var(--au);display:flex;align-items:center;gap:14px;padding:6px 14px;flex-wrap:wrap}
 header img{height:88px}
-nav{display:flex;gap:6px;flex:1;align-items:center;flex-wrap:wrap}
+nav{display:flex;gap:8px;flex:1;align-items:center;flex-wrap:wrap}
+nav button{padding:10px 18px;font-size:.95rem;font-weight:500}
 .w{max-width:980px;margin:0 auto;padding:16px}
+.wide{max-width:1180px}
 button{font:inherit;cursor:pointer;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:7px 13px}
 button.on{border-color:var(--au);color:var(--au)}
 button.p{background:var(--ac);border-color:var(--ac);color:#06202e;font-weight:600}
@@ -30,6 +32,7 @@ h3{margin:18px 0 8px;color:var(--au)}
 .tag{font-size:.72rem;border:1px solid var(--au);color:var(--au);border-radius:99px;padding:1px 8px;margin-right:5px}
 .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin-bottom:12px}
 .kp div{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px}.kp b{display:block;font-size:1.25rem}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px}
 .r{display:flex;gap:6px;margin-bottom:6px}
 #lg{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
 #lg>div{background:var(--hd);border:1px solid var(--bd);border-top:3px solid var(--au);border-radius:12px;padding:22px;width:100%;max-width:360px;text-align:center}
@@ -67,12 +70,33 @@ const opts=(a,s)=>a.map(x=>`<option ${x==s?'selected':''}>${E(x)}</option>`).joi
 const ST=['Aberto','Em andamento','Aguardando peça','Aguardando aprovação do orçamento','Concluído','Entregue'];
 const MODS={dashboard:'Painel',chamados:'Chamados',orcamentos:'Orçamentos',clientes:'Clientes',produtos:'Produtos',servicos:'Serviços',fornecedores:'Fornecedores',compras:'Compras',financeiro:'Financeiro',admin:'Administração'};
 const FP=['Pix','Dinheiro','Cartão','Transferência'];
-let me,S={cli:[],tec:[],os:[],fin:[],per:[],prod:[],srv:[],forn:[],cmp:[],orc:[],emp:{}},tab,fOS={q:'',st:''},fC='',fCa=0,fT='R',fFm='',fP='',fO='',cur=[];
+let me,S={cli:[],tec:[],os:[],fin:[],per:[],prod:[],srv:[],forn:[],cmp:[],orc:[],emp:{}},tab,fOS={q:'',st:''},fC='',fCa=0,fT='R',fFm='',fP='',fO='',dMes=today().slice(0,7),cur=[];
 const can=(m,n)=>me&&(me.admin||me.perms?.[m]?.[n]);
 const tot=o=>(o.itens||[]).reduce((s,i)=>s+i.q*i.v,0);
 const cn=id=>S.cli.find(c=>c.id==id)?.nome||'—',tn=id=>S.tec.find(t=>t.id==id)?.nome||'—';
 const pn=id=>S.prod.find(p=>p.id==id)?.nome||'—',fn=id=>S.forn.find(f=>f.id==id)?.nome||'—';
 const M=h=>{$('mod').innerHTML=`<div class="box">${h}</div>`;$('mod').style.display='flex'},X=()=>{$('mod').style.display='none'};
+function svgBars(cats,serA,serB,lblA,lblB,colA,colB){
+  const W=680,H=240,pad=34,mx=Math.max(1,...serA,...serB),bw=(W-pad*2)/cats.length/2.4;
+  const bar=(v,x,c)=>{const h=(v/mx)*(H-pad*2);return `<rect x="${x}" y="${H-pad-h}" width="${bw}" height="${h}" rx="4" fill="${c}"/>`};
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto"><line x1="${pad}" y1="${H-pad}" x2="${W-10}" y2="${H-pad}" stroke="var(--bd)"/>
+  ${cats.map((c,i)=>{const gx=pad+i*((W-pad*2)/cats.length);return bar(serA[i],gx+4,colA)+bar(serB[i],gx+bw+8,colB)+`<text x="${gx+bw+6}" y="${H-12}" font-size="10" fill="var(--mu)" text-anchor="middle">${c}</text>`}).join('')}
+  <rect x="${pad}" y="6" width="9" height="9" fill="${colA}"/><text x="${pad+13}" y="14" font-size="10" fill="var(--mu)">${lblA}</text>
+  <rect x="${pad+90}" y="6" width="9" height="9" fill="${colB}"/><text x="${pad+103}" y="14" font-size="10" fill="var(--mu)">${lblB}</text></svg>`}
+function svgLine(cats,serA,serB,lblA,lblB,colA,colB){
+  const W=680,H=220,pad=30,mx=Math.max(1,...serA,...serB),stx=(W-pad*2)/(cats.length-1||1);
+  const pts=s=>s.map((v,i)=>`${pad+i*stx},${H-pad-(v/mx)*(H-pad*2)}`).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto"><line x1="${pad}" y1="${H-pad}" x2="${W-10}" y2="${H-pad}" stroke="var(--bd)"/>
+  <polyline points="${pts(serA)}" fill="none" stroke="${colA}" stroke-width="2.5"/><polyline points="${pts(serB)}" fill="none" stroke="${colB}" stroke-width="2.5"/>
+  ${cats.map((c,i)=>`<text x="${pad+i*stx}" y="${H-10}" font-size="10" fill="var(--mu)" text-anchor="middle">${c}</text>`).join('')}
+  <rect x="${pad}" y="4" width="9" height="9" fill="${colA}"/><text x="${pad+13}" y="12" font-size="10" fill="var(--mu)">${lblA}</text>
+  <rect x="${pad+90}" y="4" width="9" height="9" fill="${colB}"/><text x="${pad+103}" y="12" font-size="10" fill="var(--mu)">${lblB}</text></svg>`}
+function svgDonut(data){
+  const T=data.reduce((s,d)=>s+d.v,0)||1,R=70,CX=90,CY=90;let a=-90;
+  const arcs=data.filter(d=>d.v>0).map(d=>{const ang=d.v/T*360,x1=CX+R*Math.cos(a*Math.PI/180),y1=CY+R*Math.sin(a*Math.PI/180);a+=ang;const x2=CX+R*Math.cos(a*Math.PI/180),y2=CY+R*Math.sin(a*Math.PI/180),large=ang>180?1:0;
+    return `<path d="M${CX},${CY} L${x1},${y1} A${R},${R} 0 ${large} 1 ${x2},${y2} Z" fill="${d.c}"/>`}).join('');
+  const leg=data.filter(d=>d.v>0).map(d=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="width:10px;height:10px;border-radius:2px;background:${d.c};display:inline-block"></span><span class="mu">${d.l} (${d.v})</span></div>`).join('');
+  return `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap"><svg viewBox="0 0 180 180" style="width:160px;height:160px">${arcs||'<circle cx="90" cy="90" r="70" fill="var(--bd)"/>'}<circle cx="90" cy="90" r="42" fill="var(--card)"/></svg><div>${leg||'<span class="mu">Sem dados</span>'}</div></div>`}
 async function run(p){const{error}=await p;if(error){alert('Erro: '+error.message);return false}return true}
 async function load(){
   [S.cli,S.tec,S.os,S.fin,S.per,S.prod,S.srv,S.forn,S.cmp,S.orc]=await Promise.all(['clientes','tecnicos','os','fin','perfis','produtos','servicos','fornecedores','compras','orcamentos'].map(t=>db.from(t).select('*').then(r=>r.data||[])));
@@ -93,31 +117,47 @@ async function sair(){await db.auth.signOut();location.reload()}
 
 function draw(){
   $('nav').innerHTML=Object.keys(MODS).filter(m=>can(m,'v')).map(m=>`<button class="${m==tab?'on':''}" onclick="tab='${m}';draw()">${MODS[m]}</button>`).join('')+`<span class="mu" style="margin-left:auto">${E(me.nome)}</span><button onclick="sair()">Sair</button>`;
+  $('main').className=tab=='dashboard'?'w wide':'w';
   $('main').innerHTML=tab?V[tab]():'<p class="mu">Você ainda não tem módulos liberados. Fale com o administrador.</p>'}
 
 const V={
 dashboard(){
-  const mes=today().slice(0,7),abertas=S.os.filter(o=>!['Concluído','Entregue'].includes(o.status)),
+  const mes=dMes,abertas=S.os.filter(o=>!['Concluído','Entregue'].includes(o.status)),
   vendas=S.os.filter(o=>(o.concluido||'').startsWith(mes)),vendasT=vendas.reduce((s,o)=>s+tot(o),0),
   comprasM=S.cmp.filter(c=>(c.data||'').startsWith(mes)),comprasT=comprasM.reduce((s,c)=>s+ +c.total,0),
   aReceber=S.fin.filter(x=>!x.pago&&x.tipo=='R').reduce((s,x)=>s+ +x.valor,0),aPagar=S.fin.filter(x=>!x.pago&&x.tipo=='P').reduce((s,x)=>s+ +x.valor,0),
   venc=S.fin.filter(x=>!x.pago&&x.venc<today()).reduce((s,x)=>s+ +x.valor,0),baixo=S.prod.filter(p=>p.estoque<=p.estoque_min),
-  novosCli=S.cli.filter(c=>(c.criado||'').startsWith(mes)).length,orcAbertos=S.orc.filter(o=>o.status=='Aberto').length;
-  return `<h3>Painel · ${new Date(mes+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</h3>
+  novosCli=S.cli.filter(c=>(c.criado||'').startsWith(mes)).length,orcAbertos=S.orc.filter(o=>o.status=='Aberto').length,
+  meses=[...Array(6)].map((_,i)=>{const d=new Date(mes+'-02T12:00:00');d.setMonth(d.getMonth()-(5-i));return d.toISOString().slice(0,7)}),
+  vend6=meses.map(m=>S.os.filter(o=>(o.concluido||'').startsWith(m)).reduce((s,o)=>s+tot(o),0)),
+  comp6=meses.map(m=>S.cmp.filter(c=>(c.data||'').startsWith(m)).reduce((s,c)=>s+ +c.total,0)),
+  lbl6=meses.map(m=>['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+m.slice(5,7)-1]),
+  statusData=[{l:'Aberto',v:S.os.filter(o=>o.status=='Aberto').length,c:'var(--s1,#dc2626)'},{l:'Em andamento',v:S.os.filter(o=>o.status=='Em andamento').length,c:'var(--au)'},
+    {l:'Aguard. peça',v:S.os.filter(o=>o.status=='Aguardando peça').length,c:'#a855f7'},{l:'Aguard. orçamento',v:S.os.filter(o=>o.status=='Aguardando aprovação do orçamento').length,c:'#f472b6'},
+    {l:'Concluído',v:S.os.filter(o=>o.status=='Concluído').length,c:'var(--ok)'},{l:'Entregue',v:S.os.filter(o=>o.status=='Entregue').length,c:'var(--ac)'}];
+  return `<div class="h" style="align-items:center"><h3 style="margin:0">Painel</h3><div class="acts" style="margin:0">
+  <select style="width:auto" onchange="dMes=dMes.slice(0,4)+'-'+this.value;draw()"><option value="">Mês…</option>${['01-Janeiro','02-Fevereiro','03-Março','04-Abril','05-Maio','06-Junho','07-Julho','08-Agosto','09-Setembro','10-Outubro','11-Novembro','12-Dezembro'].map(m=>`<option value="${m.slice(0,2)}" ${mes.slice(5,7)==m.slice(0,2)?'selected':''}>${m.slice(3)}</option>`).join('')}</select>
+  <select style="width:auto" onchange="dMes=this.value+'-'+dMes.slice(5,7);draw()">${(()=>{const y0=+today().slice(0,4),a=[];for(let y=y0-2;y<=y0+1;y++)a.push(y);return a.map(y=>`<option ${mes.slice(0,4)==''+y?'selected':''}>${y}</option>`).join('')})()}</select>
+  ${mes!=today().slice(0,7)?`<button onclick="dMes=today().slice(0,7);draw()">Mês atual</button>`:''}</div></div>
   <div class="kp">
   <div><span class="mu">OS abertas agora</span><b>${abertas.length}</b></div>
   <div><span class="mu">OS concluídas no mês</span><b>${vendas.length}</b></div>
   <div><span class="mu">Vendas no mês</span><b style="color:var(--ok)">${R$(vendasT)}</b></div>
   <div><span class="mu">Compras no mês</span><b style="color:var(--au)">${R$(comprasT)}</b></div>
+  <div><span class="mu">Saldo do mês</span><b style="color:${vendasT-comprasT>=0?'var(--ok)':'var(--er)'}">${R$(vendasT-comprasT)}</b></div>
   <div><span class="mu">A receber (total)</span><b style="color:var(--ok)">${R$(aReceber)}</b></div>
   <div><span class="mu">A pagar (total)</span><b style="color:var(--au)">${R$(aPagar)}</b></div>
   <div><span class="mu">Contas vencidas</span><b style="color:var(--er)">${R$(venc)}</b></div>
   <div><span class="mu">Orçamentos em aberto</span><b>${orcAbertos}</b></div>
-  <div><span class="mu">Produtos com estoque baixo</span><b style="color:${baixo.length?'var(--er)':'var(--tx)'}">${baixo.length}</b></div>
+  <div><span class="mu">Estoque baixo</span><b style="color:${baixo.length?'var(--er)':'var(--tx)'}">${baixo.length}</b></div>
   <div><span class="mu">Clientes novos no mês</span><b>${novosCli}</b></div>
   </div>
-  ${abertas.length?`<h3>OS em aberto por status</h3>`+ST.filter(s=>s!='Concluído'&&s!='Entregue').map(s=>{const n=abertas.filter(o=>o.status==s).length;return n?`<div class="t"><div class="h"><b>${s}</b><b>${n}</b></div></div>`:''}).join(''):''}
-  ${baixo.length?`<h3>Produtos para repor</h3>`+baixo.map(p=>`<div class="t er"><div class="h"><b>${E(p.nome)}</b><span class="mu">Estoque: ${p.estoque} ${E(p.unidade)} (mínimo ${p.estoque_min})</span></div></div>`).join(''):''}`},
+  <div class="g" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px">
+  <div class="card"><h3 style="margin-top:0">Vendas × Compras (últimos 6 meses)</h3>${svgLine(lbl6,vend6,comp6,'Vendas','Compras','var(--ok)','var(--au)')}</div>
+  <div class="card"><h3 style="margin-top:0">Vendas × Compras — ${lbl6[5]}</h3>${svgBars([lbl6[5]],[vendasT],[comprasT],'Vendas','Compras','var(--ok)','var(--au)')}</div>
+  <div class="card"><h3 style="margin-top:0">OS por status (todas, tempo real)</h3>${svgDonut(statusData)}</div>
+  <div class="card"><h3 style="margin-top:0">Produtos para repor</h3>${baixo.length?baixo.map(p=>`<div class="t er" style="margin-bottom:6px"><div class="h"><b>${E(p.nome)}</b><span class="mu">${p.estoque} ${E(p.unidade)} (mín. ${p.estoque_min})</span></div></div>`).join(''):'<p class="mu">Nenhum produto abaixo do mínimo.</p>'}</div>
+  </div>`},
 
 chamados(){
   const l=S.os.filter(o=>(!fOS.st||o.status==fOS.st)&&(!fOS.q||(o.id+' '+cn(o.cliente_id)+' '+o.equip).toLowerCase().includes(fOS.q.toLowerCase()))).sort((a,b)=>b.id-a.id);
