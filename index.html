@@ -70,7 +70,7 @@ const opts=(a,s)=>a.map(x=>`<option ${x==s?'selected':''}>${E(x)}</option>`).joi
 const ST=['Aberto','Em andamento','Aguardando peça','Aguardando aprovação do orçamento','Concluído','Entregue'];
 const MODS={dashboard:'Painel',chamados:'Chamados',orcamentos:'Orçamentos',clientes:'Clientes',produtos:'Produtos',servicos:'Serviços',fornecedores:'Fornecedores',compras:'Compras',financeiro:'Financeiro',admin:'Administração'};
 const FP=['Pix','Dinheiro','Cartão','Transferência'];
-let me,S={cli:[],tec:[],os:[],fin:[],per:[],prod:[],srv:[],forn:[],cmp:[],orc:[],emp:{}},tab,fOS={q:'',st:''},fC='',fCa=0,fT='R',fFm='',fP='',fO='',dMes=today().slice(0,7),cur=[];
+let me,S={cli:[],tec:[],os:[],fin:[],per:[],prod:[],srv:[],forn:[],cmp:[],orc:[],emp:{},cert:[]},tab,fOS={q:'',st:''},fC='',fCa=0,fT='R',fFm='',fP='',fO='',dMes=today().slice(0,7),cur=[];
 const can=(m,n)=>me&&(me.admin||me.perms?.[m]?.[n]);
 const tot=o=>(o.itens||[]).reduce((s,i)=>s+i.q*i.v,0);
 const cn=id=>S.cli.find(c=>c.id==id)?.nome||'—',tn=id=>S.tec.find(t=>t.id==id)?.nome||'—';
@@ -99,7 +99,7 @@ function svgDonut(data){
   return `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap"><svg viewBox="0 0 180 180" style="width:160px;height:160px">${arcs||'<circle cx="90" cy="90" r="70" fill="var(--bd)"/>'}<circle cx="90" cy="90" r="42" fill="var(--card)"/></svg><div>${leg||'<span class="mu">Sem dados</span>'}</div></div>`}
 async function run(p){const{error}=await p;if(error){alert('Erro: '+error.message);return false}return true}
 async function load(){
-  [S.cli,S.tec,S.os,S.fin,S.per,S.prod,S.srv,S.forn,S.cmp,S.orc]=await Promise.all(['clientes','tecnicos','os','fin','perfis','produtos','servicos','fornecedores','compras','orcamentos'].map(t=>db.from(t).select('*').then(r=>r.data||[])));
+  [S.cli,S.tec,S.os,S.fin,S.per,S.prod,S.srv,S.forn,S.cmp,S.orc,S.cert]=await Promise.all(['clientes','tecnicos','os','fin','perfis','produtos','servicos','fornecedores','compras','orcamentos','certificados'].map(t=>db.from(t).select('*').then(r=>r.data||[])));
   S.emp=(await db.from('empresa').select('*').maybeSingle()).data||{nome:'Tech Night',slogan:'',telefone:''}}
 async function refresh(){await load();draw()}
 function fMes(v){const a=fFm.slice(0,4)||''+(+today().slice(0,4));fFm=v?a+'-'+v:'';draw()}
@@ -164,7 +164,7 @@ chamados(){
   return `<div class="bar"><input placeholder="Buscar por nº, cliente ou equipamento" value="${E(fOS.q)}" onchange="fOS.q=this.value;draw()"><select onchange="fOS.st=this.value;draw()"><option value="">Todos os status</option>${opts(ST,fOS.st)}</select>${can('chamados','e')?'<button class="p" onclick="fOSm(0)">Nova OS</button>':''}</div>`+
   (l.map(o=>`<div class="t ${o.status=='Concluído'||o.status=='Entregue'?'ok':''}"><div class="h"><b>#${o.id} · ${E(cn(o.cliente_id))}</b><span class="mu">${E(o.equip)} · Técnico: ${E(tn(o.tecnico_id))} · ${E(o.origem)}</span></div><div class="mu">${E(o.problema)}</div>${o.solucao?`<div style="margin-top:4px"><span class="tag" style="border-color:var(--ok);color:var(--ok)">Solução</span>${E(o.solucao)}</div>`:''}
   <div class="acts"><select ${can('chamados','e')?'':'disabled'} onchange="setSt(${o.id},this.value)">${opts(ST,o.status)}</select><b>${R$(tot(o))}</b>
-  ${can('chamados','e')?`<button onclick="fOSm(${o.id})">Editar</button>`:''}<button onclick="pdf(${o.id})">PDF</button>${can('chamados','x')?`<button onclick="delOS(${o.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhuma OS encontrada.</p>')},
+  ${can('chamados','e')?`<button onclick="fOSm(${o.id})">Editar</button>`:''}<button onclick="pdf(${o.id})">PDF</button>${(o.status=='Concluído'||o.status=='Entregue')?'<button disabled title="Ainda não conectado ao Emissor Nacional">Emitir NFS-e (em breve)</button>':''}${can('chamados','x')?`<button onclick="delOS(${o.id})">Excluir</button>`:''}</div></div>`).join('')||'<p class="mu">Nenhuma OS encontrada.</p>')},
 
 orcamentos(){
   const l=[...S.orc].sort((a,b)=>b.id-a.id);
@@ -217,6 +217,11 @@ admin(){
   return `<div class="h"><h3>Dados da empresa</h3></div><div class="t"><div class="g"><div><label>Nome</label><input id="e_n" value="${E(e.nome)}" ${can('admin','e')?'':'disabled'}></div><div><label>Telefone / WhatsApp</label><input id="e_t" value="${E(e.telefone)}" ${can('admin','e')?'':'disabled'}></div>
   <div><label>CNPJ</label><input id="e_d" value="${E(e.cnpj)}" ${can('admin','e')?'':'disabled'}></div></div><label>Slogan</label><input id="e_s" value="${E(e.slogan)}" ${can('admin','e')?'':'disabled'}><label>Endereço</label><input id="e_a" value="${E(e.endereco)}" ${can('admin','e')?'':'disabled'}>
   ${can('admin','e')?'<div class="acts"><button class="p" onclick="saveEmp()">Salvar dados da empresa</button></div>':''}</div>
+  <div class="h"><h3>Certificado digital (NFS-e)</h3>${can('admin','e')?'<button class="p" onclick="fCert(0)">Cadastrar certificado</button>':''}</div>
+  <p class="mu">Aqui fica só o registro de controle (validade, tipo). O arquivo do certificado e a senha nunca ficam guardados no site — quando a emissão automática de NFS-e for ativada, eles vão morar em um cofre seguro do Supabase (Edge Function), fora do alcance do navegador.</p>
+  ${S.cert.map(c=>{const dias=c.validade?Math.ceil((new Date(c.validade)-new Date())/864e5):null;return `<div class="t ${c.ativo===false?'':dias!=null&&dias<60?'er':'ok'}"><div class="h"><b>${E(c.nome)}</b><span class="mu">${E(c.tipo)}${c.cnpj?' · '+E(c.cnpj):''}</span></div>
+  <div>${c.validade?`Válido até ${D(c.validade)}${dias!=null&&dias<60&&dias>=0?' <span class="tag" style="border-color:var(--er);color:var(--er)">Vence em '+dias+' dias</span>':dias<0?' <span class="tag" style="border-color:var(--er);color:var(--er)">Vencido</span>':''}`:'Sem data de validade informada'}${c.ativo===false?' <span class="tag">Inativo</span>':''}</div>
+  <div class="acts">${can('admin','e')?`<button onclick="fCert(${c.id})">Editar</button>`:''}${can('admin','x')?`<button onclick="del('certificados',${c.id})">Excluir</button>`:''}</div></div>`}).join('')||'<p class="mu">Nenhum certificado cadastrado ainda.</p>'}
   <div class="h"><h3>Usuários</h3>${can('admin','e')?'<button class="p" onclick="fUser(\'\')">Novo usuário</button>':''}</div>`+
   S.per.map(p=>`<div class="t"><div class="h"><b>${E(p.nome)}</b><span>${p.admin?'<span class="tag">Administrador</span>':''}<span class="mu">${Object.keys(MODS).filter(m=>p.perms?.[m]&&Object.values(p.perms[m]).some(Boolean)).map(m=>MODS[m]).join(', ')}</span></span></div><div class="acts">${can('admin','e')?`<button onclick="fUser('${p.id}')">Permissões</button>`:''}${p.id!=me.id&&can('admin','x')?`<button onclick="del('perfis','${p.id}')">Remover acesso</button>`:''}</div></div>`).join('')+
   `<div class="h"><h3>Técnicos</h3>${can('admin','e')?'<button class="p" onclick="fTec()">Novo técnico</button>':''}</div>`+
@@ -419,6 +424,17 @@ async function saveUser(id){
 async function saveEmp(){
   const r={nome:$('e_n').value.trim(),telefone:$('e_t').value,cnpj:$('e_d').value,slogan:$('e_s').value,endereco:$('e_a').value};
   if(await run(db.from('empresa').update(r).eq('id',1))){S.emp={...S.emp,...r};alert('Dados salvos.');draw()}}
+function fCert(id){
+  const c=S.cert.find(x=>x.id==id)||{tipo:'A1',ativo:true};
+  M(`<h3>${id?'Editar certificado':'Cadastrar certificado'}</h3><p class="mu">Apenas os dados de controle — o arquivo .pfx e a senha não são enviados aqui.</p>
+  <label>Nome de identificação</label><input id="ct_n" value="${E(c.nome)}" placeholder="Ex.: e-CNPJ Tech Night 2026"><label>CNPJ vinculado</label><input id="ct_c" value="${E(c.cnpj)}">
+  <label>Tipo</label><select id="ct_t">${opts(['A1','A3'],c.tipo)}</select><label>Validade</label><input id="ct_v" type="date" value="${c.validade||''}">
+  <label><input type="checkbox" id="ct_a" style="width:auto" ${c.ativo!==false?'checked':''}> Em uso atualmente</label><label>Observações</label><textarea id="ct_o">${E(c.obs)}</textarea>
+  <div class="acts"><button class="p" onclick="saveCert(${id||0})">Salvar</button><button onclick="X()">Fechar</button></div>`)}
+async function saveCert(id){
+  const r={nome:$('ct_n').value.trim(),cnpj:$('ct_c').value,tipo:$('ct_t').value,validade:$('ct_v').value||null,ativo:$('ct_a').checked,obs:$('ct_o').value};
+  if(!r.nome)return alert('Dê um nome para identificar o certificado.');
+  if(await run(id?db.from('certificados').update(r).eq('id',id):db.from('certificados').insert(r))){X();refresh()}}
 function fTec(id){
   const t=S.tec.find(x=>x.id==id)||{};
   M(`<h3>${id?'Editar técnico':'Novo técnico'}</h3><label>Nome do técnico</label><input id="t_n" value="${E(t.nome)}"><label>Usuário associado</label><select id="t_p"><option value="">Nenhum</option>${S.per.map(p=>`<option value="${p.id}" ${p.id==t.perfil_id?'selected':''}>${E(p.nome)}</option>`).join('')}</select>
